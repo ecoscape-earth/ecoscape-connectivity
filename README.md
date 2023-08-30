@@ -5,8 +5,8 @@ to the EcoScape algorithm.
 
 ## Authors
 
-* Luca de Alfaro (main contributor, algorithm, luca@ucsc.edu)
-* Natalia Ocampo-Peñuela (main contributor, ecology, nocampop@ucsc.edu)
+* Luca de Alfaro (luca@ucsc.edu)
+* Natalia Ocampo-Peñuela (nocampop@ucsc.edu)
 * Coen Adler (ctadler@ucsc.edu)
 * Artie Nazarov (anazarov@ucsc.edu)
 * Natalie Valett (nvalett@ucsc.edu)
