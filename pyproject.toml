@@ -3,14 +3,13 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ecoscape_connectivity"
+name = "ecoscape-connectivity"
 version = "0.0.1"
 authors = [
   {name="Luca de Alfaro", email="luca@ucsc.edu"},
   {name="Coen Adler", email="ctadler@ucsc.edu"},
   {name="Artie Nazarov", email="anazarov@ucsc.edu"},
   {name="Natalia Ocampo-Peñuela", email="nocampop@ucsc.edu"},
-  {name="Tyler Sorensen", email="tysorens@ucsc.edu"},
   {name="Jasmine Tai", email="cjtai@ucsc.edu"},
   {name="Natalie Valett", email="nvalett@ucsc.edu"}
 ]
@@ -30,6 +29,9 @@ dependencies = {file = ["requirements.txt"]}
 [tool.setuptools]
 packages = ["ecoscape_connectivity"]
 
+[project.scripts]
+ecoscape-connectivity = "ecoscape_connectivity.main:cli"
+
 [project.urls]
-"Homepage" = "https://github.com/ecoscape-earth/connectivity"
-"Bug Tracker" = "https://github.com/ecoscape-earth/connectivity/issues"
+"Homepage" = "https://github.com/ecoscape-earth/ecoscape-connectivity"
+"Bug Tracker" = "https://github.com/ecoscape-earth/ecoscape-connectivity/issues"

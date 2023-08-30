@@ -25,7 +25,7 @@ def main(args):
         tile_border=args.tile_border,
     )
 
-if __name__ == '__main__':
+def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument('--habitat', type=os.path.abspath, default=None,
                         help='Filename to a geotiff of the bird\'s habitat.')
@@ -55,4 +55,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     main(args)
+
+
+if __name__ == '__main__':
+    cli()
 

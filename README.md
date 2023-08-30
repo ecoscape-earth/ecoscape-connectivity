@@ -1,85 +1,65 @@
-Ecoscape Connectivity Version 0.0.1
+# EcoScape Connectivity Computation
 
-SYNOPSIS
-========
+This package implements the computation of connectivity and flow according 
+to the EcoScape algorithm. 
 
-**ecoscape** --H <habitat_path> --T <terrain_path> --R <resistance_path> --r <repop_path> [--g <grad_path>] [--d <hop_distance>] [--s <num_spreads>] [--S <num_simulations>] [--D <seed_density>]  
+## Authors
 
-DESCRIPTION
-===========
+* Luca de Alfaro (main author, code, luca@ucsc.edu)
+* Natalia Ocampo-Peñuela (main contributor, ecology, nocampop@ucsc.edu)
+* Coen Adler (ctadler@ucsc.edu)
+* Artie Nazarov (anazarov@ucsc.edu)
+* Natalie Valett (nvalett@ucsc.edu)
+* Jasmine Tai (cjtai@ucsc.edu)
 
-Ecoscape is a command-line utility for modeling the connectivity and habitat quality by simulating the spread of bird species across a landscape. It computes the repopulation of a bird species based on current habitat and its terrain compatibility. It can be used to inform scientists and conservationists what areas are most for a certian species, and to simulate the effects that changing landscapes will have on bird habitat health.
+## Usage.
 
-Options
--------
+The package can be used both from the command line, and as a python module. 
+For command line options, 
 
--H, --habitat=<habitat_path>
+As a Python module, the main function is compute_connectivity: 
 
-:   Filename to a geotiff of the bird\'s habitat.
+```python
+def compute_connectivity(habitat_fn=None,
+                         terrain_fn=None,
+                         connectivity_fn=None,
+                         flow_fn=None,
+                         permeability_dict=None,
+                         gap_crossing=2,
+                         num_gaps=10,
+                         num_simulations=400,
+                         seed_density=4,
+                         single_tile=False,
+                         tile_size=1000,
+                         tile_border=256,
+                         minimum_habitat=1e-4)
+```
 
--T, --terrain=<terrain_path>
+Function that computes the connectivity. This is the main function in the module.
 
-:   Filename to a geotiff of the terrain.
+**Arguments**:
 
--R, --resistance=<resistance_path>
+- `habitat_fn`: name of habitat geotiff. This file must contain 0 = non habitat,
+and 1 = habitat.
+- `terrain_fn`: name of terrain file.  This file contains terrain categories that are
+translated via permeability_dict.
+- `connectivity_fn`: output file name for connectivity.
+- `flow_fn`: output file name for flow.  If None, the flow is not computed, and the
+computation is faster.
+- `permeability_dict`: Permeability dictionary.  Gives the permeability of each
+terrain type, translating from the terrain codes, to the permeability in [0, 1].
+If a terrain type is not found in the dictionary, it is assumed it has permeability 0.
+- `gap_crossing`: size of gap crossing in pixels.
+- `num_gaps`: number of gaps that can be crossed during dispersal.
+- `num_simulations`: Number of simulations that are done.
+- `seed_density`: density of seeds.  There are this many seeds for every square with edge of
+dispersal distance.
+- `single_tile`: if True, instead of iterating over small tiles, tries to read the input as a
+single large tile.  This is faster, but might not fit into memory.
+- `tile_size`: size of (square) tile in pixels.
+- `tile_border`: size of tile border in pixels.
+- `minimum_habitat`: if a tile has a fraction of habitat smaller than this, it is skipped.
+This saves time in countries where the habitat is only on a small portion.
 
-:   Filename to a CSV dictionary of the terrain value resistance.
 
--r, --repopulation=<repop_path>
 
-:   Filename to output geotiff file for repopulation (connectivity).
-
--g, --gradient=<grad_path>
-
-:   Filename to output geotiff file for gradient. (optional, if not specified gradient will not be computed)
-
--d, --hop_distance=<hop_distance>
-
-:   the length of a bird hop, measured in pixels. So if each square has of 300m, so a hop distance of 2 corresponds to 600m. (default 4)
-
--s, --num_spreads=<num_spreads>
-
-:   the number of hops a bird can do during dispersal (default 400)
-
--S, --num_simulations=<num_simulations>
-
-:   the number of simulations performed for the spread process; a typical value is several hundreds. (default 200)
-
-FILES
-=====
-
-Input Files:
-* Habitat: a Geotiff of the habitat raster for the bird
-* Terrain: a Geotiff of the terrain description for California
-* Resistance: CSV file raw terrain resistance for each bird. This can be obtained from IUCN data
-
-NOTE: Habitat and Terrain must be of type .tif, and have the same CRS, resolution and size
-
-Optput Files:
-* Repopulation: The connectivity Geotiff containing the output of the repopulation, in geotiff format. Repopulation is represented as values between 0 and 1, multiplied by 255 and encoded as integers. 
-* Gradient: Geotiff containing the gradient computed for the repopulation, in geotiff format. For a repopulation value of $r$, we output $20 log_10(1 + r)$, clipped between 0 and 255. 
-
-ENVIRONMENT
-===========
-
-**CONNECTIVITY_ENV**
-
-:   TBD
-
-BUGS
-====
-
-See GitHub Issues: <https://github.com/ecoscape-earth/connectivity/issues>
-
-Contributors
-======
-
-## Contributors (alphabetically)
-
-* Coen Adler
-* Luca de Alfaro
-* Artie Nazarov
-* Natalia Ocampo-Peñuela
-* Tyler Sorensen
-* Jasmine Tai
-* Natalie Valett
