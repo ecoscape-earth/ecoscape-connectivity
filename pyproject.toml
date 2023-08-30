@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecoscape_connectivity"
+version = "0.0.1"
+authors = [
+  {name="Luca de Alfaro", email="luca@ucsc.edu"},
+  {name="Coen Adler", email="ctadler@ucsc.edu"},
+  {name="Artie Nazarov", email="anazarov@ucsc.edu"},
+  {name="Natalia Ocampo-Peñuela", email="nocampop@ucsc.edu"},
+  {name="Tyler Sorensen", email="tysorens@ucsc.edu"},
+  {name="Jasmine Tai", email="cjtai@ucsc.edu"},
+  {name="Natalie Valett", email="nvalett@ucsc.edu"}
+]
+description = "EcoScape habitat connectivity computation."
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+]
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools]
+packages = ["ecoscape_connectivity"]
+
+[project.urls]
+"Homepage" = "https://github.com/ecoscape-earth/connectivity"
+"Bug Tracker" = "https://github.com/ecoscape-earth/connectivity/issues"
