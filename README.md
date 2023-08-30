@@ -12,7 +12,7 @@ to the EcoScape algorithm.
 * Natalie Valett (nvalett@ucsc.edu)
 * Jasmine Tai (cjtai@ucsc.edu)
 
-## Usage.
+## Usage
 
 The package can be used both from the command line, and as a python module. 
 For command line options, do: 

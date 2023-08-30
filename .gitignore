@@ -4,4 +4,5 @@ dist/*
 */__pycache__/*
 tests/assets/Outputs/*.tif
 tests/assets/Outputs/*.xml
+build/*
 

@@ -1,1 +1,1 @@
-from repopulation import compute_connectivity
+from .repopulation import compute_connectivity

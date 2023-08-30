@@ -6,7 +6,7 @@ from contextlib import nullcontext
 
 # Our imports
 from scgt import GeoTiff, Tile
-from util import dict_translate
+from .util import dict_translate
 
 
 class StochasticRepopulateFast(nn.Module):
