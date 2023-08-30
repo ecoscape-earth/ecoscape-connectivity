@@ -5,7 +5,7 @@ to the EcoScape algorithm.
 
 ## Authors
 
-* Luca de Alfaro (main author, code, luca@ucsc.edu)
+* Luca de Alfaro (main contributor, algorithm, luca@ucsc.edu)
 * Natalia Ocampo-Peñuela (main contributor, ecology, nocampop@ucsc.edu)
 * Coen Adler (ctadler@ucsc.edu)
 * Artie Nazarov (anazarov@ucsc.edu)
@@ -15,9 +15,11 @@ to the EcoScape algorithm.
 ## Usage.
 
 The package can be used both from the command line, and as a python module. 
-For command line options, 
+For command line options, do: 
 
-As a Python module, the main function is compute_connectivity: 
+    ecoscape-connectivity --help
+
+As a Python module, the main function is `compute_connectivity`: 
 
 ```python
 def compute_connectivity(habitat_fn=None,
