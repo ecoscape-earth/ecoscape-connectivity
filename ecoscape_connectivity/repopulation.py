@@ -291,6 +291,11 @@ def compute_connectivity(
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
+    The outputs are encoded as follows:
+    - For connectivity, the values from [0, 1] are rescaled to the range 0..255 and encoded
+      as integers.
+    - For flow, the values from [0, infty) are encoded in log-scale via 20 * log_10(1 + f)
+      (so that the flow is expressed in dB, like sound intensity), and clipped to the 0..255 range.
     :param habitat_fn: name of habitat geotiff. This file must contain 0 = non habitat,
         and 1 = habitat.
     :param terrain_fn: name of terrain file.  This file contains terrain categories that are
