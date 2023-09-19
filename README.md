@@ -50,7 +50,7 @@ The connectivity and flow are encoded in the output geotiffs as follows:
 
 - `habitat_fn`: name of habitat geotiff. This file must contain 0 = non habitat,
 and 1 = habitat.
-- `terrain_fn`: name of terrain file.  This file contains terrain categories that are
+- `terrain_fn`: name of the landscape matrix geotiff.  This file contains terrain categories that are
 translated via permeability_dict.
 - `connectivity_fn`: output file name for connectivity.
 - `flow_fn`: output file name for flow.  If None, the flow is not computed, and the
