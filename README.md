@@ -12,6 +12,8 @@ to the EcoScape algorithm.
 * Natalie Valett (nvalett@ucsc.edu)
 * Jasmine Tai (cjtai@ucsc.edu)
 
+[Project home page](https://ecoscape-earth.github.io)
+
 ## Usage
 
 The package can be used both from the command line, and as a python module. 
@@ -22,6 +24,8 @@ For command line options, do:
 As a Python module, the main function is `compute_connectivity`: 
 
 ```python
+from ecoscape_connectivity import compute_connectivity
+
 def compute_connectivity(habitat_fn=None,
                          terrain_fn=None,
                          connectivity_fn=None,
@@ -37,9 +41,9 @@ def compute_connectivity(habitat_fn=None,
                          minimum_habitat=1e-4)
 ```
 
-Function that computes the connectivity. This is the main function in the module.
+The computation will be much faster if you run it with GPU support. 
 
-The connectivity and flow are encoded in the output geotiffs as follows: 
+The output connectivity and flow are encoded in the output geotiffs as follows: 
 
 - For connectivity, the values from [0, 1] are rescaled to the range 0..255 and encoded as integers. 
 - For flow, the values of $f \in [0, \infty)$ are encoded in log-scale via 
@@ -70,5 +74,8 @@ single large tile.  This is faster, but might not fit into memory.
 - `minimum_habitat`: if a tile has a fraction of habitat smaller than this, it is skipped.
 This saves time in countries where the habitat is only on a small portion.
 
+## Example Notebooks
 
+Here you can find a [Colab Notebook](https://drive.google.com/file/d/1Pz6lLyIs8Ju2UGkNtZqcNR72cFzn8UYc/view?usp=sharing) that 
+demonstrates connectivity computation. 
 
