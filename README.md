@@ -45,7 +45,7 @@ The computation will be much faster if you run it with GPU support.
 
 The output connectivity and flow are encoded in the output geotiffs as follows: 
 
-- For connectivity, the values from [0, 1] are rescaled to the range 0..255 and encoded as integers. 
+- For connectivity, the values from [0, 1] are linearly rescaled to the range 0..255 and encoded as integers, so that 0 corresponds to no connectivity, and 255 to maximum connectivity. 
 - For flow, the values of $f \in [0, \infty)$ are encoded in log-scale via 
   $20 \cdot log_{10} (1 + f)$ (so that the flow is expressed in dB, like 
   sound intensity), and clipped to integers in the 0..255 range.
