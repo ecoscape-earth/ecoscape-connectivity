@@ -17,7 +17,7 @@ class StochasticRepopulateFast(nn.Module):
     similarly sized 0-1 (float) tensor of seed points."""
 
     def __init__(self, habitat, terrain, num_spreads=100, spread_size=1, min_transmission=0.9,
-                 randomize_source=True, randomize_dest=False):
+                 randomize_source=True, randomize_dest=False, deterministic=False):
         """
         :param habitat: torch tensor (2-dim) representing the habitat.
         :param terrain: torch tensor (2-dim) representing the terrain.
@@ -26,6 +26,7 @@ class StochasticRepopulateFast(nn.Module):
         :param min_transmission: min value used in randomizations.
         :param randomize_source: whether to randomize the source of the spread.
         :param randomize_dest: whether to randomize the destination of the spread.
+        :param deterministic: whether to make the repopulation deterministic for reproducibility
         """
         super().__init__()
         self.habitat = habitat
@@ -39,6 +40,7 @@ class StochasticRepopulateFast(nn.Module):
         self.randomize_dest = randomize_dest
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
+        self.deterministic = deterministic
 
 
     def forward(self, seed):
@@ -52,7 +54,9 @@ class StochasticRepopulateFast(nn.Module):
             # We put it into shape (1, w, h) because the pooling operator expects this.
             x = torch.unsqueeze(x, dim=0)
         # Now we must propagate n times.
-        for _ in range(self.num_spreads):
+        for i in range(self.num_spreads):
+            if self.deterministic:
+                torch.manual_seed(i)
             # First, we randomly suppress some bird origin locations.
             xx = x
             if self.randomize_source:
@@ -81,7 +85,7 @@ def analyze_tile_torch(
         analysis_class=StochasticRepopulateFast,
         seed_density=4.0, produce_gradient=False,
         batch_size=1, total_spreads=100, num_simulations=100,
-        hop_length=1):
+        hop_length=1, deterministic=False):
     """This is the function that performs the analysis on a single tile.
     The input and output to this function are in cpu, but the computation occurs in
     the specified device.
@@ -95,7 +99,7 @@ def analyze_tile_torch(
     produce_gradient: boolean, whether to produce a gradient as result or not.
     int batch_size: batch size for GPU calculations.
     int num_simulations: how many simulations to run.  Must be multiple of batch_size.
-
+    bool deterministic: whether to make the repopulation deterministic for reproducibility
     """
 
     device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
@@ -114,6 +118,8 @@ def analyze_tile_torch(
         ter = torch.tensor(terrain.astype(np.float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
         repopulator = analysis_class(hab, ter, num_spreads=total_spreads, spread_size=hop_length).to(device)
         for i in range(num_batches):
+            if deterministic:
+                torch.manual_seed(i)
             # Creates the seeds.
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
             # And passes them through the repopulation.
@@ -287,7 +293,8 @@ def compute_connectivity(
         single_tile=False,
         tile_size=1000,
         tile_border=256,
-        minimum_habitat=1e-4
+        minimum_habitat=1e-4,
+        deterministic=False
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
@@ -317,6 +324,7 @@ def compute_connectivity(
     :param tile_border: size of tile border in pixels.
     :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
         This saves time in countries where the habitat is only on a small portion.
+    :param deterministic: whether to make the repopulation deterministic for reproducibility
     """
     assert habitat_fn is not None and terrain_fn is not None
     assert connectivity_fn is not None
@@ -327,7 +335,8 @@ def compute_connectivity(
         produce_gradient=flow_fn is not None,
         total_spreads=num_gaps,
         num_simulations=num_simulations,
-        hop_length=gap_crossing)
+        hop_length=gap_crossing,
+        deterministic=deterministic)
     # Applies it.
     analyze_geotiffs(
         habitat_fn, terrain_fn,
