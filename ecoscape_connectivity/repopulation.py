@@ -110,8 +110,8 @@ def analyze_tile_torch(
         num_batches = num_simulations // batch_size
         tot_grad = torch.zeros((1, w, h), dtype=torch.float, device=device)
         tot_pop = torch.zeros((1, w, h), dtype=torch.float, device=device)
-        hab = torch.tensor(habitat.astype(np.float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
-        ter = torch.tensor(terrain.astype(np.float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
+        hab = torch.tensor(habitat.astype(float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
+        ter = torch.tensor(terrain.astype(float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
         repopulator = analysis_class(hab, ter, num_spreads=total_spreads, spread_size=hop_length).to(device)
         for i in range(num_batches):
             # Creates the seeds.
