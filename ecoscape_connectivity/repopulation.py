@@ -287,7 +287,7 @@ def compute_connectivity(
         tile_size=1000,
         tile_border=256,
         minimum_habitat=1e-4,
-        deterministic=None
+        random_seed=None
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
@@ -317,13 +317,13 @@ def compute_connectivity(
     :param tile_border: size of tile border in pixels.
     :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
         This saves time in countries where the habitat is only on a small portion.
-    :param deterministic: seed, if desired. 
+    :param random_seed: random seed, if desired. 
     """
     assert habitat_fn is not None and terrain_fn is not None
     assert connectivity_fn is not None
     assert permeability_dict is not None
-    if deterministic:
-        torch.manual_seed(deterministic)
+    if random_seed:
+        torch.manual_seed(random_seed)
     # Builds the analysis function.
     analysis_fn = analyze_tile_torch(
         seed_density=seed_density,
