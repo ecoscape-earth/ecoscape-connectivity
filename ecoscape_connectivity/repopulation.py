@@ -80,13 +80,21 @@ def analyze_tile_torch(
         device=None,
         analysis_class=StochasticRepopulateFast,
         seed_density=4.0, produce_gradient=False,
-        batch_size=1, total_spreads=100, num_simulations=100,
+        batch_size=1, total_spreads=10, num_simulations=100,
         hop_length=1):
     """This is the function that performs the analysis on a single tile.
     The input and output to this function are in cpu, but the computation occurs in
     the specified device.
-    hop_length: length in pixels of a bird hop.
+    hop_length: length in pixels of a bird hop.  If this is a single integer, this 
+        is the actual fixed gap-crossing distance + 1 in pixels. 
+        If this is of the form (k, p), this is a discrete gamma distribution 
+        (known as negative binomial) with parameters k and p from which we sample
+        the gap crossing. The hop length is then equal to the gap crossing + 1. 
     total_spreads: total number of spreads used.
+        As above, if this is an integer, we do this constanst number of spreads 
+        for all batches. Otherwise, if it is of the form (k, p), we do 
+        a number of spreads sampled from a negative-binomial distribution 
+        with parameters (k, p). (Should we add 1 to this??). 
     seed_density: Consider a square of edge 2 * hop_length * total_spreads.
         In that square, there will be seed_density seeds on average.
     str device: the device to be used, either cpu or cuda.
@@ -116,6 +124,7 @@ def analyze_tile_torch(
         for i in range(num_batches):
             # Creates the seeds.
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
+            ## Sample the hop and spreads if necessary. 
             # And passes them through the repopulation.
             pop = repopulator(seeds)
             # We need to take the mean over each batch.  This will tell us what is the
