@@ -58,6 +58,8 @@ class StochasticRepopulateFast(nn.Module):
             if self.randomize_source:
                 x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
             # Then, we propagate.
+            if callable(self.spread_size):
+                self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=self.spread_size())
             x = self.spreader(x) * self.goodness
             # We randomize the destinations too.
             if self.randomize_dest:
@@ -87,14 +89,14 @@ def analyze_tile_torch(
     the specified device.
     hop_length: length in pixels of a bird hop.  If this is a single integer, this 
         is the actual fixed gap-crossing distance + 1 in pixels. 
-        If this is of the form (k, p), this is a discrete gamma distribution 
-        (known as negative binomial) with parameters k and p from which we sample
-        the gap crossing. The hop length is then equal to the gap crossing + 1. 
+        If this is a function/callable (probability distribution), we run 
+        the function (and sample the distribution) to get our hop_length. The hop 
+        length is then equal to the gap crossing + 1. 
     total_spreads: total number of spreads used.
         As above, if this is an integer, we do this constanst number of spreads 
-        for all batches. Otherwise, if it is of the form (k, p), we do 
-        a number of spreads sampled from a negative-binomial distribution 
-        with parameters (k, p). (Should we add 1 to this??). 
+        for all batches. Otherwise, If this is of the form of a function 
+        (probability distribution), we run the function (and sample the distribution)
+        to get our hop_length.. 
     seed_density: Consider a square of edge 2 * hop_length * total_spreads.
         In that square, there will be seed_density seeds on average.
     str device: the device to be used, either cpu or cuda.
@@ -118,6 +120,8 @@ def analyze_tile_torch(
         num_batches = num_simulations // batch_size
         tot_grad = torch.zeros((1, w, h), dtype=torch.float, device=device)
         tot_pop = torch.zeros((1, w, h), dtype=torch.float, device=device)
+        if callable(total_spreads):
+            total_spreads = total_spreads()
         hab = torch.tensor(habitat.astype(float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
         ter = torch.tensor(terrain.astype(float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
         repopulator = analysis_class(hab, ter, num_spreads=total_spreads, spread_size=hop_length).to(device)
