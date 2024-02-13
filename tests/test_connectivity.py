@@ -1,12 +1,17 @@
 import os
 import ecoscape_connectivity
 import numpy as np
+import csv
 
 DATA_PATH="tests/assets"
 
 HABITAT_PATH = os.path.join(DATA_PATH, "habitat_small.tif")
 TERRAIN_PATH = os.path.join(DATA_PATH, "terrain_small.tif")
 PERMEABILITY_PATH = os.path.join(DATA_PATH, "terrain_permeability.csv")
+
+with open(PERMEABILITY_PATH, mode='r') as infile:
+    reader = csv.reader(infile)
+    permeability_dict = {rows[0]:rows[1] for rows in reader}
 
 CONNECTIVITY_PATH = os.path.join(DATA_PATH, "Outputs/connectivity.tif")
 FLOW_PATH = os.path.join(DATA_PATH, "Outputs/flow.tif")
@@ -27,7 +32,7 @@ def test_connectivity():
     ecoscape_connectivity.compute_connectivity(
         habitat_fn=HABITAT_PATH,
         terrain_fn=TERRAIN_PATH,
-        permeability_dict=PERMEABILITY_PATH,
+        permeability_dict=permeability_dict,
         connectivity_fn=CONNECTIVITY_PATH,
         flow_fn=FLOW_PATH,
         num_simulations=20,
