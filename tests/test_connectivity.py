@@ -25,10 +25,21 @@ def gap_calc(r, p):
 def num_gaps_calc(n):
     # returns a random sample from the normal probability distribution
     def f():
-            return np.random.normal(n)
+            return int(np.random.normal(n))
     return f
 
 def test_connectivity():
+    # ecoscape_connectivity.compute_connectivity(
+    #     habitat_fn=HABITAT_PATH,
+    #     terrain_fn=TERRAIN_PATH,
+    #     permeability_dict=permeability_dict,
+    #     connectivity_fn=CONNECTIVITY_PATH,
+    #     flow_fn=FLOW_PATH,
+    #     num_simulations=20,
+    #     gap_crossing=2,
+    #     num_gaps=10,
+    # )
+
     ecoscape_connectivity.compute_connectivity(
         habitat_fn=HABITAT_PATH,
         terrain_fn=TERRAIN_PATH,
@@ -36,19 +47,8 @@ def test_connectivity():
         connectivity_fn=CONNECTIVITY_PATH,
         flow_fn=FLOW_PATH,
         num_simulations=20,
-        gap_crossing=2,
-        num_gaps=10,
+        gap_crossing=gap_calc(4, 0.8),
+        num_gaps=num_gaps_calc(10),
     )
-
-    # ecoscape_connectivity.compute_connectivity(
-    #     habitat_fn=HABITAT_PATH,
-    #     terrain_fn=TERRAIN_PATH,
-    #     permeability_dict=PERMEABILITY_PATH,
-    #     connectivity_fn=CONNECTIVITY_PATH,
-    #     flow_fn=FLOW_PATH,
-    #     num_simulations=20,
-    #     gap_crossing=gap_calc(4, 0.8),
-    #     num_gaps=num_gaps_calc(10),
-    # )
 
 test_connectivity()
