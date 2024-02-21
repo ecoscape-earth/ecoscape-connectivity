@@ -31,12 +31,8 @@ class StochasticRepopulateFast(nn.Module):
         self.habitat = habitat
         self.goodness = torch.nn.Parameter(torch.max(habitat, terrain), requires_grad=True)
         self.h, self.w = habitat.shape
-        if callable(num_spreads):
-            num_spreads = num_spreads()
-        self.num_spreads = num_spreads
-        if callable(spread_size):
-            spread_size = spread_size()
-        self.spread_size = spread_size
+        self.num_size = num_size() if callable(num_size) else num_size
+        self.spread_size = spread_size() if callable(spread_size) else spread_size
         # Defines spread operator.
         self.min_transmission = min_transmission
         self.randomize_source = randomize_source
@@ -129,14 +125,8 @@ def analyze_tile_torch(
         repopulator = analysis_class(hab, ter, num_spreads=total_spreads, spread_size=hop_length).to(device)
         for i in range(num_batches):
             # Creates the seeds.
-            if callable(hop_length):
-                hop_length_tmp = hop_length()
-            else:
-                hop_length_tmp = hop_length
-            if callable(total_spreads):
-                total_spreads_tmp = total_spreads()
-            else:
-                total_spreads_tmp = total_spreads
+            hop_length_tmp = hop_length() if callable(hop_length) else hop_length
+            total_spreads_tmp = total_spreads() if callable(total_spreads) else total_spreads
             seed_probability =  seed_density / ((2 * hop_length_tmp * total_spreads_tmp) ** 2)
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
             ## Sample the hop and spreads if necessary. 
