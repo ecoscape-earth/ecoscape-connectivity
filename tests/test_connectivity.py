@@ -2,6 +2,8 @@ import os
 import ecoscape_connectivity
 import numpy as np
 import csv
+import math
+import scipy
 
 DATA_PATH="tests/assets"
 
@@ -28,6 +30,25 @@ def num_gaps_calc(n):
             return int(np.random.normal(n))
     return f
 
+def half_cauchy(median, truncation):
+    # returns a random sample from a truncated half cauchy probability distribution
+    # Requirement: median < truncation/2
+    assert median < truncation/2
+    # Solving for sigma using cdf formula knowing the median probability
+    sigma = truncation**0.5*median/(truncation-2*median)**0.5
+    cdf_dif = []
+    prev_cdf = 0
+    for i in range(1,truncation+1):
+        cur_cdf = 2/math.pi * math.atan(i/sigma)
+        cdf_dif.append(cur_cdf-prev_cdf)
+        prev_cdf = cur_cdf
+    probs = scipy.special.softmax(cdf_dif)
+    
+    def f():
+        return int(np.random.choice(range(1,truncation+1), p=probs))
+    return f
+    
+
 def test_connectivity():
     # ecoscape_connectivity.compute_connectivity(
     #     habitat_fn=HABITAT_PATH,
@@ -47,8 +68,8 @@ def test_connectivity():
         connectivity_fn=CONNECTIVITY_PATH,
         flow_fn=FLOW_PATH,
         num_simulations=20,
-        gap_crossing=gap_calc(4, 0.8),
-        num_gaps=num_gaps_calc(10),
+        gap_crossing=half_cauchy(2, 7),
+        num_gaps=half_cauchy(3, 9),
     )
 
 test_connectivity()
