@@ -52,7 +52,7 @@ class StochasticRepopulateFast(nn.Module):
             # We put it into shape (1, w, h) because the pooling operator expects this.
             x = torch.unsqueeze(x, dim=0)
         # Now we must propagate n times.
-        for _ in range(self.num_spreads):
+        for i in range(self.num_spreads):
             # First, we randomly suppress some bird origin locations.
             xx = x
             if self.randomize_source:
@@ -95,7 +95,6 @@ def analyze_tile_torch(
     produce_gradient: boolean, whether to produce a gradient as result or not.
     int batch_size: batch size for GPU calculations.
     int num_simulations: how many simulations to run.  Must be multiple of batch_size.
-
     """
 
     device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
@@ -287,7 +286,8 @@ def compute_connectivity(
         single_tile=False,
         tile_size=1000,
         tile_border=256,
-        minimum_habitat=1e-4
+        minimum_habitat=1e-4,
+        random_seed=None
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
@@ -317,10 +317,13 @@ def compute_connectivity(
     :param tile_border: size of tile border in pixels.
     :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
         This saves time in countries where the habitat is only on a small portion.
+    :param random_seed: random seed, if desired. 
     """
     assert habitat_fn is not None and terrain_fn is not None
     assert connectivity_fn is not None
     assert permeability_dict is not None
+    if random_seed:
+        torch.manual_seed(random_seed)
     # Builds the analysis function.
     analysis_fn = analyze_tile_torch(
         seed_density=seed_density,
