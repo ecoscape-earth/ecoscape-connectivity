@@ -280,7 +280,7 @@ def compute_connectivity(
         connectivity_fn=None,
         flow_fn=None,
         permeability_dict=None,
-        gap_crossing=2,
+        gap_crossing=1,
         num_gaps=10,
         num_simulations=400,
         seed_density=4,

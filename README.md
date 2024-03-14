@@ -12,8 +12,6 @@ to the EcoScape algorithm.
 * Natalie Valett (nvalett@ucsc.edu)
 * Jasmine Tai (cjtai@ucsc.edu)
 
-[Project home page](https://ecoscape-earth.github.io)
-
 ## Usage
 
 The package can be used both from the command line, and as a python module. 

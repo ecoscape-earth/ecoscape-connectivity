@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ecoscape-connectivity"
-version = "0.0.2"
+version = "0.0.3"
 authors = [
   {name="Luca de Alfaro", email="luca@ucsc.edu"},
   {name="Coen Adler", email="ctadler@ucsc.edu"},
@@ -34,4 +34,5 @@ ecoscape-connectivity = "ecoscape_connectivity.main:cli"
 
 [project.urls]
 "Homepage" = "https://github.com/ecoscape-earth/ecoscape-connectivity"
+"Project Homepage" = "https://ecoscape-earth.github.io"
 "Bug Tracker" = "https://github.com/ecoscape-earth/ecoscape-connectivity/issues"
