@@ -31,8 +31,8 @@ class StochasticRepopulateFast(nn.Module):
         self.habitat = habitat
         self.goodness = torch.nn.Parameter(torch.max(habitat, terrain), requires_grad=True)
         self.h, self.w = habitat.shape
-        self.num_spreads = num_spreads
-        self.spread_size = spread_size
+        self.num_size = num_size() if callable(num_size) else num_size
+        self.spread_size = spread_size() if callable(spread_size) else spread_size
         # Defines spread operator.
         self.min_transmission = min_transmission
         self.randomize_source = randomize_source
@@ -58,6 +58,8 @@ class StochasticRepopulateFast(nn.Module):
             if self.randomize_source:
                 x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
             # Then, we propagate.
+            if callable(self.spread_size):
+                self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=self.spread_size())
             x = self.spreader(x) * self.goodness
             # We randomize the destinations too.
             if self.randomize_dest:
@@ -80,13 +82,21 @@ def analyze_tile_torch(
         device=None,
         analysis_class=StochasticRepopulateFast,
         seed_density=4.0, produce_gradient=False,
-        batch_size=1, total_spreads=100, num_simulations=100,
+        batch_size=1, total_spreads=10, num_simulations=100,
         hop_length=1):
     """This is the function that performs the analysis on a single tile.
     The input and output to this function are in cpu, but the computation occurs in
     the specified device.
-    hop_length: length in pixels of a bird hop.
+    hop_length: length in pixels of a bird hop.  If this is a single integer, this 
+        is the actual fixed gap-crossing distance + 1 in pixels. 
+        If this is a function/callable (probability distribution), we run 
+        the function (and sample the distribution) to get our hop_length. The hop 
+        length is then equal to the gap crossing + 1. 
     total_spreads: total number of spreads used.
+        As above, if this is an integer, we do this constanst number of spreads 
+        for all batches. Otherwise, If this is of the form of a function 
+        (probability distribution), we run the function (and sample the distribution)
+        to get our hop_length.. 
     seed_density: Consider a square of edge 2 * hop_length * total_spreads.
         In that square, there will be seed_density seeds on average.
     str device: the device to be used, either cpu or cuda.
@@ -100,7 +110,7 @@ def analyze_tile_torch(
     device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Computes the seed probability
-    seed_probability =  seed_density / ((2 * hop_length * total_spreads) ** 2)
+    # seed_probability =  seed_density / ((2 * hop_length * total_spreads) ** 2)
 
     def f(habitat, terrain):
         _, w, h = habitat.shape
@@ -114,7 +124,11 @@ def analyze_tile_torch(
         repopulator = analysis_class(hab, ter, num_spreads=total_spreads, spread_size=hop_length).to(device)
         for i in range(num_batches):
             # Creates the seeds.
+            hop_length_tmp = hop_length() if callable(hop_length) else hop_length
+            total_spreads_tmp = total_spreads() if callable(total_spreads) else total_spreads
+            seed_probability =  seed_density / ((2 * hop_length_tmp * total_spreads_tmp) ** 2)
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
+            ## Sample the hop and spreads if necessary. 
             # And passes them through the repopulation.
             pop = repopulator(seeds)
             # We need to take the mean over each batch.  This will tell us what is the
