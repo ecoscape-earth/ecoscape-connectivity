@@ -35,14 +35,14 @@ def half_cauchy(median, truncation):
     # Requirement: median < truncation/2
     assert median < truncation/2
     # Solving for sigma using cdf formula knowing the median probability
-    sigma = truncation**0.5*median/(truncation-2*median)**0.5
+    sigma = (2*truncation-1)**0.5*(2*median-1) / (8*truncation-16*median+4)**0.5
     cdf_dif = []
-    prev_cdf = 0
+    prev_cdf = 2/math.pi * math.atan((0.5)/sigma)
     for i in range(1,truncation+1):
-        cur_cdf = 2/math.pi * math.atan(i/sigma)
+        cur_cdf = 2/math.pi * math.atan((i+0.5)/sigma)
         cdf_dif.append(cur_cdf-prev_cdf)
         prev_cdf = cur_cdf
-    probs = scipy.special.softmax(cdf_dif)
+    probs = np.array(cdf_dif) * (1/np.sum(cdf_dif))
     
     def f():
         return int(np.random.choice(range(1,truncation+1), p=probs))
@@ -68,8 +68,8 @@ def test_connectivity():
         connectivity_fn=CONNECTIVITY_PATH,
         flow_fn=FLOW_PATH,
         num_simulations=20,
-        gap_crossing=half_cauchy(2, 7),
-        num_gaps=half_cauchy(3, 9),
+        gap_crossing=1,
+        num_gaps=half_cauchy(15, 40),
     )
 
 test_connectivity()

@@ -31,7 +31,7 @@ class StochasticRepopulateFast(nn.Module):
         self.habitat = habitat
         self.goodness = torch.nn.Parameter(torch.max(habitat, terrain), requires_grad=True)
         self.h, self.w = habitat.shape
-        self.num_size = num_size() if callable(num_size) else num_size
+        self.num_spreads = num_spreads() if callable(num_spreads) else num_spreads
         self.spread_size = spread_size() if callable(spread_size) else spread_size
         # Defines spread operator.
         self.min_transmission = min_transmission
@@ -59,7 +59,7 @@ class StochasticRepopulateFast(nn.Module):
                 x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
             # Then, we propagate.
             if callable(self.spread_size):
-                self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=self.spread_size())
+                self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=self.spread_size)
             x = self.spreader(x) * self.goodness
             # We randomize the destinations too.
             if self.randomize_dest:
