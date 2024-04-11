@@ -64,12 +64,12 @@ def half_cauchy(median, truncation):
     (c - \mu) / \sigma = 1 - ( (m - \mu) / \sigma )^2
 
     Simplify
-    \sigma = +/- ( (m - \mu) * sqrt(c - \mu) ) / sqrt( c + \mu + 2m)
+    \sigma = +/- ( (m - \mu) * sqrt(c - \mu) ) / sqrt( c + \mu - 2m)
     '''
     
     mu = 0.5
     c = truncation+0.5
-    sigma = (median - mu) * (c - mu)**0.5 / (c + mu + 2*median) ** 0.5 
+    sigma = (median - mu) * (c - mu)**0.5 / (c + mu - 2*median) ** 0.5 
     cdf_dif = []
     prev_cdf = cdf(sigma, mu, 0.5)
     for i in range(1,truncation+1):
