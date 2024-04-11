@@ -34,8 +34,36 @@ def half_cauchy(median, truncation):
     # returns a random sample from a truncated half cauchy probability distribution
     # Requirement: median < truncation/2
     assert median < truncation/2
-    # Solving for sigma using cdf formula knowing the median probability
-    sigma = (2*truncation-1)**0.5*(2*median-1) / (8*truncation-16*median+4)**0.5
+    '''
+    Solving for sigma using cdf formula knowing the median probability
+    CDF of Half-Cauchy Distribution - {\mu is distribution shift}
+    F(\mu, \sigma : y) = 2 / \pi * arctan( (y - \mu) / \sigma )  
+    
+    CDF of H-C at the truncation threshold
+    \theta = 2/ \pi * arctan( (c - \mu) / \sigma )
+    where c = truncation_threshold
+
+    CDF of H-C at the median
+    \theta / 2 = 2/ \pi * arctan( (m - \mu) / \sigma )
+    where m = median
+
+    Solve for \sigma:
+    arctan( (c - \mu) / \sigma ) = 2 * arctan( (m - \mu) / \sigma )
+
+    let x = (m - \mu) / \sigma
+    2 * arctan( (m - \mu) / \sigma ) = 2 * arctan(x)
+    => arctan(1 - x^2)
+
+    arctan( (c - \mu) / \sigma ) = arctan(1 - x^2)
+    (c - \mu) / \sigma = 1 - x^2
+    (c - \mu) / \sigma = 1 - ( (m - \mu) / \sigma )^2
+
+    Simplify
+    \sigma = +/- ( (m - \mu) * sqrt(c - \mu) ) / sqrt( c + \mu + 2m)
+    '''
+    
+    mu = 0.5
+    sigma = (median - mu) * (truncation - mu)**0.5 / (truncation + mu + 2*median) ** 0.5 
     cdf_dif = []
     prev_cdf = 2/math.pi * math.atan((0.5)/sigma)
     for i in range(1,truncation+1):
