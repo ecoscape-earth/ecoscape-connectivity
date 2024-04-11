@@ -34,7 +34,8 @@ def half_cauchy(median, truncation):
     # returns a random sample from a truncated half cauchy probability distribution
     # Requirement: median < truncation/2
     assert median < truncation/2
-    '''
+
+    r'''
     Solving for sigma using cdf formula knowing the median probability
     CDF of Half-Cauchy Distribution - {\mu is distribution shift}
     F(\mu, \sigma : y) = 2 / \pi * arctan( (y - \mu) / \sigma )  
@@ -65,9 +66,9 @@ def half_cauchy(median, truncation):
     mu = 0.5
     sigma = (median - mu) * (truncation - mu)**0.5 / (truncation + mu + 2*median) ** 0.5 
     cdf_dif = []
-    prev_cdf = 2/math.pi * math.atan((0.5)/sigma)
+    prev_cdf = 0
     for i in range(1,truncation+1):
-        cur_cdf = 2/math.pi * math.atan((i+0.5)/sigma)
+        cur_cdf = 2/math.pi * math.atan((i)/sigma)
         cdf_dif.append(cur_cdf-prev_cdf)
         prev_cdf = cur_cdf
     probs = np.array(cdf_dif) * (1/np.sum(cdf_dif))
@@ -95,7 +96,7 @@ def test_connectivity():
         permeability_dict=permeability_dict,
         connectivity_fn=CONNECTIVITY_PATH,
         flow_fn=FLOW_PATH,
-        num_simulations=20,
+        num_simulations=200,
         gap_crossing=1,
         num_gaps=half_cauchy(15, 40),
     )
