@@ -32,6 +32,10 @@ def num_gaps_calc(n):
 
 def half_cauchy(median, truncation):
     # returns a random sample from a truncated half cauchy probability distribution
+
+    def cdf(sigma, mu, y):
+        return 2/math.pi * math.atan((y - mu)/sigma)
+
     # Requirement: median < truncation/2
     assert median < truncation/2
 
@@ -64,11 +68,12 @@ def half_cauchy(median, truncation):
     '''
     
     mu = 0.5
-    sigma = (median - mu) * (truncation - mu)**0.5 / (truncation + mu + 2*median) ** 0.5 
+    c = truncation+0.5
+    sigma = (median - mu) * (c - mu)**0.5 / (c + mu + 2*median) ** 0.5 
     cdf_dif = []
-    prev_cdf = 0
+    prev_cdf = cdf(sigma, mu, 0.5)
     for i in range(1,truncation+1):
-        cur_cdf = 2/math.pi * math.atan((i)/sigma)
+        cur_cdf = cdf(sigma, mu, i+0.5)
         cdf_dif.append(cur_cdf-prev_cdf)
         prev_cdf = cur_cdf
     probs = np.array(cdf_dif) * (1/np.sum(cdf_dif))
