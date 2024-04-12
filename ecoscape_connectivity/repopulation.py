@@ -31,8 +31,8 @@ class StochasticRepopulateFast(nn.Module):
         self.habitat = habitat
         self.goodness = torch.nn.Parameter(torch.max(habitat, terrain), requires_grad=True)
         self.h, self.w = habitat.shape
-        self.num_spreads = num_spreads() if callable(num_spreads) else num_spreads
-        self.spread_size = spread_size() if callable(spread_size) else spread_size
+        self.num_spreads = num_spreads
+        self.spread_size = spread_size
         # Defines spread operator.
         self.min_transmission = min_transmission
         self.randomize_source = randomize_source
@@ -81,22 +81,22 @@ class StochasticRepopulateFast(nn.Module):
 def analyze_tile_torch(
         device=None,
         analysis_class=StochasticRepopulateFast,
-        seed_density=4.0, produce_gradient=False,
-        batch_size=1, total_spreads=10, num_simulations=100,
-        hop_length=1):
+        seed_density=4.0,
+        produce_gradient=False,
+        batch_size=1,
+        dispersal=20,
+        num_simulations=100,
+        gap_crossing=0):
     """This is the function that performs the analysis on a single tile.
     The input and output to this function are in cpu, but the computation occurs in
     the specified device.
-    hop_length: length in pixels of a bird hop.  If this is a single integer, this 
-        is the actual fixed gap-crossing distance + 1 in pixels. 
-        If this is a function/callable (probability distribution), we run 
-        the function (and sample the distribution) to get our hop_length. The hop 
-        length is then equal to the gap crossing + 1. 
-    total_spreads: total number of spreads used.
-        As above, if this is an integer, we do this constanst number of spreads 
-        for all batches. Otherwise, If this is of the form of a function 
+    gap_crossing: maximum number of pixels a bird can jump. 0 means only contiguous pixels.
+        If this is a callable, then we sample the gap crossing from the callable.
+    dispersal: dispersal distance in pixels.
+        As above, if this is an integer, we do this constanst number of spreads
+        for all batches. Otherwise, If this is of the form of a function
         (probability distribution), we run the function (and sample the distribution)
-        to get our hop_length.. 
+        to get the dispersal distance.
     seed_density: Consider a square of edge 2 * hop_length * total_spreads.
         In that square, there will be seed_density seeds on average.
     str device: the device to be used, either cpu or cuda.
@@ -121,14 +121,21 @@ def analyze_tile_torch(
         tot_pop = torch.zeros((1, w, h), dtype=torch.float, device=device)
         hab = torch.tensor(habitat.astype(float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
         ter = torch.tensor(terrain.astype(float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
-        repopulator = analysis_class(hab, ter, num_spreads=total_spreads, spread_size=hop_length).to(device)
+        # If the num_spreads and spread_size are constant, then we can use a fixed repopulator, which is more efficient.
+        if not callable(gap_crossing) and not callable(dispersal):
+            num_spreads = int(0.5 + dispersal / (gap_crossing + 1))
+            repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1).to(device)
         for i in range(num_batches):
+            # Decides on the total spread and hop length.
+            spread_size_tmp = 1 + (gap_crossing() if callable(gap_crossing) else gap_crossing)
+            dispersal_tmp = dispersal() if callable(dispersal) else dispersal
+            num_spreads = int(0.5 + dispersal_tmp / spread_size_tmp)
+            if callable(gap_crossing) or callable(dispersal):
+                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size_tmp).to(device)
             # Creates the seeds.
-            hop_length_tmp = hop_length() if callable(hop_length) else hop_length
-            total_spreads_tmp = total_spreads() if callable(total_spreads) else total_spreads
-            seed_probability =  seed_density / ((2 * hop_length_tmp * total_spreads_tmp) ** 2)
+            seed_probability =  seed_density / ((2 * dispersal_tmp) ** 2)
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
-            ## Sample the hop and spreads if necessary. 
+            ## Sample the hop and spreads if necessary.
             # And passes them through the repopulation.
             pop = repopulator(seeds)
             # We need to take the mean over each batch.  This will tell us what is the
@@ -293,8 +300,8 @@ def compute_connectivity(
         connectivity_fn=None,
         flow_fn=None,
         permeability_dict=None,
-        gap_crossing=1,
-        num_gaps=10,
+        gap_crossing=0,
+        dispersal=20,
         num_simulations=400,
         seed_density=4,
         single_tile=False,
@@ -320,8 +327,8 @@ def compute_connectivity(
     :param permeability_dict: Permeability dictionary.  Gives the permeability of each
         terrain type, translating from the terrain codes, to the permeability in [0, 1].
         If a terrain type is not found in the dictionary, it is assumed it has permeability 0.
-    :param gap_crossing: size of gap crossing in pixels.
-    :param num_gaps: number of gaps that can be crossed during dispersal.
+    :param gap_crossing: size of gap crossing in pixels. 0 means animals move via contiguous pixels.
+    :param dispersal: dispersal distance in pixels.
     :param num_simulations: Number of simulations that are done.
     :param seed_density: density of seeds.  There are this many seeds for every square with edge of
         dispersal distance.
@@ -331,7 +338,7 @@ def compute_connectivity(
     :param tile_border: size of tile border in pixels.
     :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
         This saves time in countries where the habitat is only on a small portion.
-    :param random_seed: random seed, if desired. 
+    :param random_seed: random seed, if desired.
     """
     assert habitat_fn is not None and terrain_fn is not None
     assert connectivity_fn is not None
@@ -342,9 +349,9 @@ def compute_connectivity(
     analysis_fn = analyze_tile_torch(
         seed_density=seed_density,
         produce_gradient=flow_fn is not None,
-        total_spreads=num_gaps,
+        dispersal=dispersal,
         num_simulations=num_simulations,
-        hop_length=gap_crossing)
+        gap_crossing=gap_crossing)
     # Applies it.
     analyze_geotiffs(
         habitat_fn, terrain_fn,

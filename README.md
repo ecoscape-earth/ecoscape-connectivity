@@ -60,8 +60,18 @@ computation is faster.
 - `permeability_dict`: Permeability dictionary.  Gives the permeability of each
 terrain type, translating from the terrain codes, to the permeability in [0, 1].
 If a terrain type is not found in the dictionary, it is assumed it has permeability 0.
-- `gap_crossing`: size of gap crossing in pixels.
-- `num_gaps`: number of gaps that can be crossed during dispersal.
+- `gap_crossing`: size of gap crossing in pixels. This can be either a 
+  constant, or a function that returns a value each time it is called. 
+- `dispersal`: dispersal distance.  This can 
+  be either a constant, or a function that, each time called, returns a 
+  value; the latter is useful for simulating dispersal distance 
+  distributions. The dispersal distance is measured in pixels. The 
+  underlying simulation will simulate a number `num_gaps` of gap-crossing 
+  events equal to `num_gaps = dispersal / (gap_crossing + 1)`, where of 
+  course `gap_crossing` can be 0. 
+  So if animals cannot cross any gap (`gap_crossing = 0`) and the dispersal 
+  is 40 px, then the number of simulated gap crossings (or better, pixels 
+  expansions) will be 40. 
 - `num_simulations`: Number of simulations that are done.
 - `seed_density`: density of seeds.  There are this many seeds for every square with edge of
 dispersal distance.
@@ -76,4 +86,26 @@ This saves time in countries where the habitat is only on a small portion.
 
 Here you can find a [Colab Notebook](https://drive.google.com/file/d/1Pz6lLyIs8Ju2UGkNtZqcNR72cFzn8UYc/view?usp=sharing) that 
 demonstrates connectivity computation. 
+
+## Notes on Parameters
+
+We are currently using these algorithms with a pixel size of about 300m x 300m. 
+With this pixel size, we use a gap_crossing of 0 (animals move via 
+contiguous pixels). 
+
+## Dispersal Distance Distributions
+
+Distributions that can be passed to `dispersal` are defined in `distributions.
+py`, and are: 
+
+- `constant`: always returns the same value (not very useful; one might as 
+  well pass a constant).
+- `half_cauchy`: using `half_cauchy(median, truncation)` returns a function 
+  that, each time it is called, returns an integer sampled from a 
+  half-Cauchy distribution with given median and truncation.  One can use 
+  this function as input for `num_gaps` to simulate dispersal distance 
+  distributions via, for instance, `num_gaps=half_cauchy(40, 160)`. Please 
+  refer to `distributions.py` for the details. 
+
+
 
