@@ -133,7 +133,7 @@ def analyze_tile_torch(
             if callable(gap_crossing) or callable(dispersal):
                 repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size_tmp).to(device)
             # Creates the seeds.
-            seed_probability =  seed_density / ((2 * dispersal_tmp) ** 2)
+            seed_probability =  seed_density / ((1 + 2 * dispersal_tmp) ** 2)
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
             ## Sample the hop and spreads if necessary.
             # And passes them through the repopulation.

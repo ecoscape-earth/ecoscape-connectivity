@@ -24,10 +24,11 @@ def half_cauchy(median, truncation):
     corresponding to the largest integer that can be returned.
     To generate a sample, the function will sample a half-Cauchy distribution p.
     If x ~ p is the sample, the function will return round(x), that is, x rounded to the
-    nearest integer.
+    nearest integer.  We do not return the value 0, since for dispersal distances,
+    0 is not a useful value for a simulation.
 
     Given the truncation, we obtain p by considering a half-Cauchy distribution truncated
-    to the interval [0, truncation + 0.5], where the +0.5 is there to accommodate for the
+    to the interval [0 + 0.5, truncation + 0.5], where the +0.5 is there to accommodate for the
     rounding.  We select the parameter sigma of the half-Cauchy distribution such that the
     median, after such truncation, is equal to the input median.
     """
@@ -77,10 +78,12 @@ def half_cauchy(median, truncation):
         cur_cdf = cdf(sigma, i + 0.5)
         cdf_dif.append(cur_cdf - prev_cdf)
         prev_cdf = cur_cdf
+    # Drops the 0.
+    cdf_dif = cdf_dif[1:]
     probs = np.array(cdf_dif) * (1 / np.sum(cdf_dif))
 
     def f():
         """This is the function that does the actual sampling."""
-        return int(np.random.choice(range(0, truncation + 1), p=probs))
+        return 1 + int(np.random.choice(range(truncation), p=probs))
 
     return f
