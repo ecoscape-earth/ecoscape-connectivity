@@ -151,7 +151,8 @@ def analyze_geotiffs(habitat_fn, terrain_fn,
                      minimum_habitat=1e-4,
                      output_repop_fn=None,
                      output_grad_fn=None,
-                     report_progress=False):
+                     report_progress=False,
+                     in_memory=False):
     '''
     Reads a geotiff (or better, a pair of habitat and terrain geotiffs),
     iterating over the tiles, analyzing it with a specified analysis function,
@@ -172,12 +173,14 @@ def analyze_geotiffs(habitat_fn, terrain_fn,
     minimum_habitat: minimum average of habitat to skip the tile.
     string output_grad: file path for outputting the grad tif file.
     string output_repop: file path for outputting the repop tif file.
-        For these last two, if None, then no file is generated.
+        For this and output_grad, if None, then no file is generated.
+    bool in_memory: whether the connectivity and flow should be saved in memory only. If so, then
+        the files are not saved to disk, so the open files for connectivity and flow are returned.
     '''
     if display_tiles is False:
         display_tiles = []
 
-    do_gradient = generate_gradient and output_grad_fn is not None
+    do_gradient = generate_gradient and (output_grad_fn is not None if not in_memory else True)
     habitat_geotiff = GeoTiff.from_file(habitat_fn)
     terrain_geotiff = GeoTiff.from_file(terrain_fn)
     def do_analysis(repop_file, grad_file):
@@ -265,12 +268,24 @@ def analyze_geotiffs(habitat_fn, terrain_fn,
         if report_progress:
            print()
 
-    if output_repop_fn is not None:
+    if in_memory:
+        # Produce the outputs in memory.
+        repop_output = habitat_geotiff.create_memory_file(habitat_geotiff.profile)
+        grad_output = habitat_geotiff.create_memory_file(habitat_geotiff.profile) if do_gradient else nullcontext()
+        do_analysis(repop_output, grad_output)
+        # These are open memory files. The caller should close them with scgt's GeoTiff.close_memory_file()
+        # once they are not needed anymore.
+        return repop_output, grad_output
+    elif output_repop_fn is not None:
+        # Produce the outputs on disk.
         with habitat_geotiff.clone_shape(output_repop_fn) as repop_output:
             with habitat_geotiff.clone_shape(output_grad_fn) if do_gradient else nullcontext() as grad_output:
                 do_analysis(repop_output, grad_output)
     else:
+        # Just run the analysis without outputs.
         do_analysis(None, None)
+    
+    return None, None
 
 
 def compute_connectivity(
@@ -287,7 +302,9 @@ def compute_connectivity(
         tile_size=1000,
         tile_border=256,
         minimum_habitat=1e-4,
-        random_seed=None
+        random_seed=None,
+        in_memory=False,
+        generate_flow_memory=False
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
@@ -318,6 +335,14 @@ def compute_connectivity(
     :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
         This saves time in countries where the habitat is only on a small portion.
     :param random_seed: random seed, if desired. 
+    :param in_memory: whether the connectivity and flow should be saved in memory only.
+        If so, then the files are not saved to disk. Because such files would be deleted on close,
+        the open memory files will be returned as (repop_file, grad_file). Note that the parameters
+        connectivity_fn and flow_fn are ignored if this is set to True, and at least connectivity
+        will be returned. Flow is also generated only if generate_flow_memory is True.
+    :param generate_flow_memory: whether the flow should be generated in memory. Only used if
+        in_memory is True.
+    :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
     """
     assert habitat_fn is not None and terrain_fn is not None
     assert connectivity_fn is not None
@@ -327,20 +352,21 @@ def compute_connectivity(
     # Builds the analysis function.
     analysis_fn = analyze_tile_torch(
         seed_density=seed_density,
-        produce_gradient=flow_fn is not None,
+        produce_gradient=(flow_fn is not None if not in_memory else generate_flow_memory),
         total_spreads=num_gaps,
         num_simulations=num_simulations,
         hop_length=gap_crossing)
     # Applies it.
-    analyze_geotiffs(
+    return analyze_geotiffs(
         habitat_fn, terrain_fn,
         permeability_dict,
         analysis_fn=analysis_fn,
         single_tile=single_tile,
         block_size=tile_size,
         border_size=tile_border,
-        generate_gradient=flow_fn is not None,
+        generate_gradient=(flow_fn is not None if not in_memory else generate_flow_memory),
         minimum_habitat=minimum_habitat,
         output_repop_fn=connectivity_fn,
         output_grad_fn=flow_fn,
+        in_memory=in_memory
     )
