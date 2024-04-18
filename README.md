@@ -38,7 +38,9 @@ def compute_connectivity(habitat_fn=None,
                          single_tile=False,
                          tile_size=1000,
                          tile_border=256,
-                         minimum_habitat=1e-4)
+                         minimum_habitat=1e-4,
+                         in_memory=False,
+                         generate_flow_memory=False)
 ```
 
 The computation will be much faster if you run it with GPU support. 
@@ -52,10 +54,10 @@ The output connectivity and flow are encoded in the output geotiffs as follows:
 
 **Arguments**:
 
-- `habitat_fn`: name of habitat geotiff. This file must contain 0 = non habitat,
-and 1 = habitat.
-- `terrain_fn`: name of the landscape matrix geotiff.  This file contains terrain categories that are
-translated via permeability_dict.
+- `habitat_fn`: name of habitat geotiff, or GeoTiff object from habitat geotiff. This file
+must contain 0 = non habitat, and 1 = habitat.
+- `terrain_fn`: name of the landscape matrix geotiff, or GeoTiff object from landscape
+matrix geotiff.  This file contains terrain categories that are translated via permeability_dict.
 - `connectivity_fn`: output file name for connectivity.
 - `flow_fn`: output file name for flow.  If None, the flow is not computed, and the
 computation is faster.
@@ -73,6 +75,13 @@ single large tile.  This is faster, but might not fit into memory.
 - `tile_border`: size of tile border in pixels.
 - `minimum_habitat`: if a tile has a fraction of habitat smaller than this, it is skipped.
 This saves time in countries where the habitat is only on a small portion.
+- `in_memory`: whether the connectivity and flow should be saved in memory only.
+If so, then the files are not saved to disk. Because such files would be deleted on close,
+the open memory files will be returned as `(repop_file, grad_file)`. Note that the parameters
+`connectivity_fn` and `flow_fn` are ignored if this is set to True, and at least connectivity
+will be returned. Flow is also generated only if `generate_flow_memory` is True.
+- `generate_flow_memory`: whether the flow should be generated in memory. Only used if
+in_memory is True.
 
 ## Example Notebooks
 
