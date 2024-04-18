@@ -1,4 +1,5 @@
 # Standard imports
+import argparse
 import numpy as np
 import torch
 from torch import nn
@@ -317,7 +318,8 @@ def compute_connectivity(
         flow_fn=None,
         permeability_dict=None,
         gap_crossing=0,
-        dispersal=20,
+        dispersal=None,
+        num_gaps=None,
         num_simulations=400,
         seed_density=4,
         single_tile=False,
@@ -347,6 +349,8 @@ def compute_connectivity(
         If a terrain type is not found in the dictionary, it is assumed it has permeability 0.
     :param gap_crossing: size of gap crossing in pixels. 0 means animals move via contiguous pixels.
     :param dispersal: dispersal distance in pixels.
+    :param num_gaps: number of gaps to cross. Deprecated.  If dispersal is None, then this is used to 
+        compute the dispersal distance.  At least one of dispersal, num_gaps must be provided.
     :param num_simulations: Number of simulations that are done.
     :param seed_density: density of seeds.  There are this many seeds for every square with edge of
         dispersal distance.
@@ -373,6 +377,9 @@ def compute_connectivity(
     assert permeability_dict is not None
     if random_seed:
         torch.manual_seed(random_seed)
+    if dispersal is None:
+        assert num_gaps is not None, "One of dispersal and gap crossing should be specified."
+        dispersal = (1 + gap_crossing) * num_gaps
     # Builds the analysis function.
     analysis_fn = analyze_tile_torch(
         seed_density=seed_density,
@@ -394,3 +401,40 @@ def compute_connectivity(
         output_grad_fn=flow_fn,
         in_memory=in_memory
     )
+    
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Compute connectivity and flow.')
+    parser.add_argument('--habitat', type=str, help='Habitat geotiff file')
+    parser.add_argument('--terrain', type=str, help='Terrain geotiff file')
+    parser.add_argument('--connectivity', type=str, 
+                        help='Output connectivity geotiff file')
+    parser.add_argument('--flow', type=str, 
+                        help='Output flow geotiff file; if not provided, flow is not computed')
+    parser.add_argument('--permeability', type=str, 
+                        help='Permeability dictionary csv file')
+    parser.add_argument('--gap_crossing', type=int, default=0,
+                        help='Gap crossing size in pixels')
+    parser.add_argument('--dispersal', type=float, default=40, 
+                        help='Dispersal distance in pixels')
+    parser.add_argument('--num_simulations', type=int, default=400,
+                        help='Number of simulations')
+    parser.add_argument('--single_tile', action='store_true', default=False,
+                        help='Read the entire geotiff as a single tile')
+    parser.add_argument('--tile_size', type=int, default=1000,
+                        help='Size of tile in pixels')
+    parser.add_argument('--tile_border', type=int, default=100,
+                        help='Size of tile border in pixels')
+    args = parser.parse_args()
+    compute_connectivity(
+        habitat_fn=args.habitat,
+        terrain_fn=args.terrain,
+        connectivity_fn=args.connectivity,
+        flow_fn=args.flow,
+        permeability_dict=args.permeability,
+        gap_crossing=args.gap_crossing,
+        dispersal=args.dispersal,
+        num_simulations=args.num_simulations,
+        single_tile=args.single_tile,
+        tile_size=args.tile_size,
+        tile_border=args.tile_border
+    )   
