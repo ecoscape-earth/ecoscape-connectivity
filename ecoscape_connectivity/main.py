@@ -19,6 +19,7 @@ def main(args):
         flow_fn=args.flow,
         num_simulations=args.num_simulations,
         gap_crossing=args.gap_crossing,
+        dispersal=args.dispersal,
         num_gaps=args.num_gap_crossings,
         single_tile=args.single_tile,
         tile_size=args.tile_size,
@@ -40,10 +41,13 @@ def cli():
                         help='Filename to output geotiff file for flow. If missing, no flow is computed.')
     parser.add_argument('--num_simulations', type=int, default=400,
                         help='Number of simulations to perform.')
-    parser.add_argument('--gap_crossing', type=int, default=2,
+    parser.add_argument('--gap_crossing', type=int, default=0,
                         help='Gap-crossing distance in pixels.')
-    parser.add_argument('--num_gap_crossings', type=int, default=10,
-                        help='Number of gap crossings in a dispersal.')
+    parser.add_argument('--dispersal', type=float, default=40,
+                        help='Dispersal distance in pixels.')
+    parser.add_argument('--num_gap_crossings', type=int, default=None,
+                        help='Number of gap crossings in a dispersal. Deprecated. ' +
+                        'Use the dissipation parameter instead.')
     parser.add_argument('--seed_density', type=int, default=4,
                         help='Density of random seeds in the simulation.')
     parser.add_argument('--single_tile', action="store_true", default=False,
