@@ -172,14 +172,15 @@ def analyze_geotiffs(habitat_fn, terrain_fn,
                      minimum_habitat=1e-4,
                      output_repop_fn=None,
                      output_grad_fn=None,
-                     report_progress=False):
+                     report_progress=False,
+                     in_memory=False):
     '''
     Reads a geotiff (or better, a pair of habitat and terrain geotiffs),
     iterating over the tiles, analyzing it with a specified analysis function,
     and then writing the results back.
 
-    str habitat_fn: filename of habitat geotiff
-    str terrain_fn: filename of terrain geotiff
+    str/GeoTiff habitat_fn: filename of habitat geotiff, or GeoTiff object from habitat geotiff
+    str/GeoTiff terrain_fn: filename of terrain geotiff, or GeoTiff object from terrain geotiff
     dict terr_to_transmission: terrain to transmission mapping dictionary
     analysis_fn: function used for analysis.
     disp_fn: function used to display a tile for debugging purposes.
@@ -193,14 +194,17 @@ def analyze_geotiffs(habitat_fn, terrain_fn,
     minimum_habitat: minimum average of habitat to skip the tile.
     string output_grad: file path for outputting the grad tif file.
     string output_repop: file path for outputting the repop tif file.
-        For these last two, if None, then no file is generated.
+        For this and output_grad, if None, then no file is generated.
+    bool in_memory: whether the connectivity and flow should be saved in memory only. If so, then
+        the files are not saved to disk, so the open files for connectivity and flow are returned.
     '''
     if display_tiles is False:
         display_tiles = []
 
-    do_gradient = generate_gradient and output_grad_fn is not None
-    habitat_geotiff = GeoTiff.from_file(habitat_fn)
-    terrain_geotiff = GeoTiff.from_file(terrain_fn)
+    do_gradient = generate_gradient and (output_grad_fn is not None if not in_memory else True)
+    habitat_geotiff = GeoTiff.from_file(habitat_fn) if type(habitat_fn) == str else habitat_fn
+    terrain_geotiff = GeoTiff.from_file(terrain_fn) if type(terrain_fn) == str else terrain_fn
+
     def do_analysis(repop_file, grad_file):
         do_output = (repop_file is not None)
         if hab_tile is not None and ter_tile is not None:
@@ -286,12 +290,24 @@ def analyze_geotiffs(habitat_fn, terrain_fn,
         if report_progress:
            print()
 
-    if output_repop_fn is not None:
-        with habitat_geotiff.clone_shape(output_repop_fn) as repop_output:
-            with habitat_geotiff.clone_shape(output_grad_fn) if do_gradient else nullcontext() as grad_output:
+    if in_memory:
+        # Produce the outputs in memory.
+        repop_output = GeoTiff.create_memory_file(habitat_geotiff.profile)
+        grad_output = GeoTiff.create_memory_file(habitat_geotiff.profile) if do_gradient else nullcontext()
+        do_analysis(repop_output, grad_output)
+        # These are open memory files. The caller should close them with scgt's GeoTiff.close_memory_file()
+        # once they are not needed anymore.
+        return repop_output, grad_output
+    elif output_repop_fn is not None:
+        # Produce the outputs on disk.
+        with GeoTiff.copy_to_new_file(output_repop_fn, habitat_geotiff.profile) as repop_output:
+            with GeoTiff.copy_to_new_file(output_grad_fn, habitat_geotiff.profile) if do_gradient else nullcontext() as grad_output:
                 do_analysis(repop_output, grad_output)
     else:
+        # Just run the analysis without outputs.
         do_analysis(None, None)
+    
+    return None, None
 
 
 def compute_connectivity(
@@ -308,7 +324,9 @@ def compute_connectivity(
         tile_size=1000,
         tile_border=256,
         minimum_habitat=1e-4,
-        random_seed=None
+        random_seed=None,
+        in_memory=False,
+        generate_flow_memory=False
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
@@ -317,10 +335,10 @@ def compute_connectivity(
       as integers.
     - For flow, the values from [0, infty) are encoded in log-scale via 20 * log_10(1 + f)
       (so that the flow is expressed in dB, like sound intensity), and clipped to the 0..255 range.
-    :param habitat_fn: name of habitat geotiff. This file must contain 0 = non habitat,
-        and 1 = habitat.
-    :param terrain_fn: name of terrain file.  This file contains terrain categories that are
-        translated via permeability_dict.
+    :param habitat_fn: name of habitat geotiff, or GeoTiff object from habitat geotiff. This file must contain
+        0 = non habitat, and 1 = habitat.
+    :param terrain_fn: name of terrain geotiff, or GeoTiff object from terrain geotiff.  This file contains
+        terrain categories that are translated via permeability_dict.
     :param connectivity_fn: output file name for connectivity.
     :param flow_fn: output file name for flow.  If None, the flow is not computed, and the
         computation is faster.
@@ -338,9 +356,19 @@ def compute_connectivity(
     :param tile_border: size of tile border in pixels.
     :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
         This saves time in countries where the habitat is only on a small portion.
-    :param random_seed: random seed, if desired.
+    :param random_seed: random seed, if desired. 
+    :param in_memory: whether the connectivity and flow should be saved in memory only.
+        If so, then the files are not saved to disk. Because such files would be deleted on close,
+        the open memory files will be returned as (repop_file, grad_file). Note that the parameters
+        connectivity_fn and flow_fn are ignored if this is set to True, and at least connectivity
+        will be returned. Flow is also generated only if generate_flow_memory is True.
+    :param generate_flow_memory: whether the flow should be generated in memory. Only used if
+        in_memory is True.
+    :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
     """
     assert habitat_fn is not None and terrain_fn is not None
+    assert type(habitat_fn) == str or type(habitat_fn) == GeoTiff
+    assert type(terrain_fn) == str or type(terrain_fn) == GeoTiff
     assert connectivity_fn is not None
     assert permeability_dict is not None
     if random_seed:
@@ -353,15 +381,16 @@ def compute_connectivity(
         num_simulations=num_simulations,
         gap_crossing=gap_crossing)
     # Applies it.
-    analyze_geotiffs(
+    return analyze_geotiffs(
         habitat_fn, terrain_fn,
         permeability_dict,
         analysis_fn=analysis_fn,
         single_tile=single_tile,
         block_size=tile_size,
         border_size=tile_border,
-        generate_gradient=flow_fn is not None,
+        generate_gradient=(flow_fn is not None if not in_memory else generate_flow_memory),
         minimum_habitat=minimum_habitat,
         output_repop_fn=connectivity_fn,
         output_grad_fn=flow_fn,
+        in_memory=in_memory
     )
