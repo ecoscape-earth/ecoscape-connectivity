@@ -29,6 +29,9 @@ class StochasticRepopulateFast(nn.Module):
         :param randomize_dest: whether to randomize the destination of the spread.
         """
         super().__init__()
+        # spread_size and num_spreads have to be integers, not callables here. 
+        assert type(spread_size) == int, "spread_size must be an int"
+        assert type(num_spreads) == int, "num_spreads must be an int"
         self.habitat = habitat
         self.goodness = torch.nn.Parameter(torch.max(habitat, terrain), requires_grad=True)
         self.h, self.w = habitat.shape
@@ -59,8 +62,6 @@ class StochasticRepopulateFast(nn.Module):
             if self.randomize_source:
                 x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
             # Then, we propagate.
-            if callable(self.spread_size):
-                self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=self.spread_size)
             x = self.spreader(x) * self.goodness
             # We randomize the destinations too.
             if self.randomize_dest:
@@ -92,7 +93,6 @@ def analyze_tile_torch(
     The input and output to this function are in cpu, but the computation occurs in
     the specified device.
     gap_crossing: maximum number of pixels a bird can jump. 0 means only contiguous pixels.
-        If this is a callable, then we sample the gap crossing from the callable.
     dispersal: dispersal distance in pixels.
         As above, if this is an integer, we do this constanst number of spreads
         for all batches. Otherwise, If this is of the form of a function
@@ -109,6 +109,7 @@ def analyze_tile_torch(
     """
 
     device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+    assert type(gap_crossing) == int, "gap_crossing must be an int"
 
     # Computes the seed probability
     # seed_probability =  seed_density / ((2 * hop_length * total_spreads) ** 2)
@@ -123,16 +124,16 @@ def analyze_tile_torch(
         hab = torch.tensor(habitat.astype(float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
         ter = torch.tensor(terrain.astype(float), requires_grad=False, dtype=torch.float, device = device).view(w, h)
         # If the num_spreads and spread_size are constant, then we can use a fixed repopulator, which is more efficient.
-        if not callable(gap_crossing) and not callable(dispersal):
+        if not callable(dispersal):
             num_spreads = int(0.5 + dispersal / (gap_crossing + 1))
             repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1).to(device)
         for i in range(num_batches):
             # Decides on the total spread and hop length.
-            spread_size_tmp = 1 + (gap_crossing() if callable(gap_crossing) else gap_crossing)
+            spread_size = 1 + (gap_crossing() if callable(gap_crossing) else gap_crossing)
             dispersal_tmp = dispersal() if callable(dispersal) else dispersal
-            num_spreads = int(0.5 + dispersal_tmp / spread_size_tmp)
-            if callable(gap_crossing) or callable(dispersal):
-                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size_tmp).to(device)
+            num_spreads = int(0.5 + dispersal_tmp / spread_size)
+            if callable(dispersal):
+                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size).to(device)
             # Creates the seeds.
             seed_probability =  seed_density / ((1 + 2 * dispersal_tmp) ** 2)
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
