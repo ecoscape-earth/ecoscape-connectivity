@@ -129,7 +129,7 @@ def analyze_tile_torch(
             repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1).to(device)
         for i in range(num_batches):
             # Decides on the total spread and hop length.
-            spread_size = 1 + (gap_crossing() if callable(gap_crossing) else gap_crossing)
+            spread_size = 1 + gap_crossing
             dispersal_tmp = dispersal() if callable(dispersal) else dispersal
             num_spreads = int(0.5 + dispersal_tmp / spread_size)
             if callable(dispersal):
