@@ -160,8 +160,9 @@ def analyze_tile_torch(
 
 
 
-def analyze_geotiffs(habitat_fn, terrain_fn,
-                     terr_to_transmission,
+def analyze_geotiffs(habitat_fn, 
+                     terrain_fn,
+                     permeability_dictionary,
                      analysis_fn=None,
                      single_tile=False,
                      hab_tile=None, ter_tile=None,
@@ -183,7 +184,8 @@ def analyze_geotiffs(habitat_fn, terrain_fn,
 
     str/GeoTiff habitat_fn: filename of habitat geotiff, or GeoTiff object from habitat geotiff
     str/GeoTiff terrain_fn: filename of terrain geotiff, or GeoTiff object from terrain geotiff
-    dict terr_to_transmission: terrain to transmission mapping dictionary
+    dict permeability_dictionary: terrain to permeability mapping dictionary. 
+        Terrains not listed are assigned a permeability of 0. 
     analysis_fn: function used for analysis.
     disp_fn: function used to display a tile for debugging purposes.
     Tile hab_tile, Tile ter_tile: If provided, runs on this particular tile, and
@@ -251,7 +253,7 @@ def analyze_geotiffs(habitat_fn, terrain_fn,
                 continue
             # We process the tile.
             # First, we translate the terrain to correct resistance
-            terrain = dict_translate(raw_terrain, terr_to_transmission, default_val=0)
+            terrain = dict_translate(raw_terrain, permeability_dictionary, default_val=0)
             if display_tiles is True or i in display_tiles:
                 print("Terrain types", np.unique(raw_terrain))
                 disp_fn(terrain, title="Terrain transmission")
