@@ -313,16 +313,16 @@ def analyze_geotiffs(habitat_fn,
 
     if in_memory:
         # Produce the outputs in memory.
-        repop_output = GeoTiff.create_memory_file(habitat_geotiff.profile)
-        grad_output = GeoTiff.create_memory_file(habitat_geotiff.profile) if do_gradient else nullcontext()
+        repop_output = GeoTiff.create_memory_file(permeability_geotiff.profile)
+        grad_output = GeoTiff.create_memory_file(permeability_geotiff.profile) if do_gradient else nullcontext()
         do_analysis(repop_output, grad_output)
         # These are open memory files. The caller should close them with scgt's GeoTiff.close_memory_file()
         # once they are not needed anymore.
         return repop_output, grad_output
     elif output_repop_fn is not None:
         # Produce the outputs on disk.
-        with GeoTiff.copy_to_new_file(output_repop_fn, habitat_geotiff.profile) as repop_output:
-            with GeoTiff.copy_to_new_file(output_grad_fn, habitat_geotiff.profile) if do_gradient else nullcontext() as grad_output:
+        with GeoTiff.copy_to_new_file(output_repop_fn, permeability_geotiff.profile) as repop_output:
+            with GeoTiff.copy_to_new_file(output_grad_fn, permeability_geotiff.profile) if do_gradient else nullcontext() as grad_output:
                 do_analysis(repop_output, grad_output)
     else:
         # Just run the analysis without outputs.
