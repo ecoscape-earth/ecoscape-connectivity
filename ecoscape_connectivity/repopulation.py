@@ -394,7 +394,7 @@ def compute_connectivity(
         in_memory is True.
     :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
     """
-    assert type(habitat_fn) == str or type(habitat_fn) == GeoTiff
+    assert habitat_fn is None or type(habitat_fn) == str or type(habitat_fn) == GeoTiff
     assert terrain_fn is not None or permeability_fn is not None
     assert terrain_fn is None or permeability_dict is not None
     assert terrain_fn is None or type(terrain_fn) == str or type(terrain_fn) == GeoTiff
