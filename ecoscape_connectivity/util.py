@@ -44,3 +44,17 @@ def createdir_for_file(fn):
     dirs, ffn = os.path.split(fn)
     # print("Creating", dirs)
     os.makedirs(dirs, exist_ok=True)
+
+class SingleIterator(object):
+    """Given an iterator, this class builds an iterator that returns 
+    pairs of the form (None, i), where i is given by the iterator."""
+    
+    def __init__(self, it):
+        self.it = it
+        
+    def __iter__(self):
+        return self
+        
+    def __next__(self):
+        x = next(self.it)
+        return (None, x)

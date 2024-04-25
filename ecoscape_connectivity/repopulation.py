@@ -7,7 +7,7 @@ from contextlib import nullcontext
 
 # Our imports
 from scgt import GeoTiff, Tile
-from .util import dict_translate
+from .util import dict_translate, SingleIterator
 
 
 class StochasticRepopulateFast(nn.Module):
@@ -159,14 +159,14 @@ def analyze_tile_torch(
     return f
 
 
-
 def analyze_geotiffs(habitat_fn, 
                      terrain_fn,
                      permeability_dictionary,
+                     permeability_fn,
+                     permeability_scaling=1.0,
                      analysis_fn=None,
                      single_tile=False,
-                     hab_tile=None, ter_tile=None,
-                     block_size=128,
+                     tile_size=1024,
                      border_size=64,
                      generate_gradient=True,
                      interesting_tiles=None,
@@ -188,12 +188,9 @@ def analyze_geotiffs(habitat_fn,
         Terrains not listed are assigned a permeability of 0. 
     analysis_fn: function used for analysis.
     disp_fn: function used to display a tile for debugging purposes.
-    Tile hab_tile, Tile ter_tile: If provided, runs on this particular tile, and
-        disregards the other parameters.
     bool single_tile: if true, reads the entire geotiff as a single tile (no iteration).
-    int block_size: dimensions of tile
+    int tile_size: dimensions of tile
     int border_size: pixel border on each side
-    list interesting_tiles: for running only a specified tile list
     display_tiles: True, to display tiles, or list of tiles interesting enough to display.
     minimum_habitat: minimum average of habitat to skip the tile.
     string output_grad: file path for outputting the grad tif file.
@@ -206,59 +203,79 @@ def analyze_geotiffs(habitat_fn,
         display_tiles = []
 
     do_gradient = generate_gradient and (output_grad_fn is not None if not in_memory else True)
-    habitat_geotiff = GeoTiff.from_file(habitat_fn) if type(habitat_fn) == str else habitat_fn
-    terrain_geotiff = GeoTiff.from_file(terrain_fn) if type(terrain_fn) == str else terrain_fn
+    habitat_geotiff = None
+    if habitat_fn is not None:
+        habitat_geotiff = GeoTiff.from_file(habitat_fn) if type(habitat_fn) == str else habitat_fn
+    # We specify permeability either via a terrain and a dictionary, or via a permeability file 
+    # with scaling.  In either case, we have a permeability geotiff, which we then have to 
+    # either scale or process via a dictionary.
+    if terrain_fn is not None:
+        # We use terrain and dictionary. 
+        scale_via_dictionary = True
+        permeability_geotiff = GeoTiff.from_file(terrain_fn) if type(terrain_fn) == str else terrain_fn
+    else:
+        # We are directly given a permeability file, which we scale via a constant. 
+        scale_via_dictionary = False
+        permeability_geotiff = GeoTiff.from_file(permeability_fn) if type(permeability_fn) == str else permeability_fn
+
+
 
     def do_analysis(repop_file, grad_file):
         do_output = (repop_file is not None)
-        if hab_tile is not None and ter_tile is not None:
-            hab_reader = [hab_tile]
-            ter_reader = [ter_tile]
+        # Reads the files.
+        # Iterates through the tiles.
+        if single_tile:
+            # We read the geotiffs as a single tile.
+            joint_reader = [
+                (habitat_geotiff.get_all_as_tile() if habitat_geotiff is not None else None,
+                 permeability_geotiff.get_all_as_tile())
+            ]
         else:
-            # Reads the files.
-            # Iterates through the tiles.
-            if single_tile:
-                # We read the geotiffs as a single tile.
-                hab_reader = [habitat_geotiff.get_all_as_tile()]
-                ter_reader = [terrain_geotiff.get_all_as_tile()]
+            # We create readers to iterate over the tiles.
+            per_reader = permeability_geotiff.get_reader(b=border_size, w=tile_size, h=tile_size)
+            if habitat_geotiff is None:
+                # We create a reader where the habitat is always None.
+                joint_reader = SingleIterator(per_reader)
             else:
-                # We create readers to iterate over the tiles.
-                hab_reader = habitat_geotiff.get_reader(b=border_size, w=block_size, h=block_size)
-                ter_reader = terrain_geotiff.get_reader(b=border_size, w=block_size, h=block_size)
+                hab_reader = habitat_geotiff.get_reader(b=border_size, w=tile_size, h=tile_size)
+                joint_reader = zip(hab_reader, per_reader)        
         # We process each tile.
-        for i, (hab_tile_iter, ter_tile_iter) in enumerate(zip(hab_reader, ter_reader)):
-            raw_habitat = hab_tile_iter.m # Habitat tile
-            raw_terrain = ter_tile_iter.m # Terrain tile
-            # Deals with missing values in the habitat.
-            habitat = np.maximum(raw_habitat, 0)
+        for i, (hab_tile_iter, per_tile_iter) in enumerate(joint_reader):
+            raw_habitat = hab_tile_iter.m if hab_tile_iter is not None else None # Habitat tile
+            raw_permeability = per_tile_iter.m # Permeability tile            
             if display_tiles is True or i in display_tiles:
                 disp_fn(habitat, title="Raw habitat")
-                disp_fn(raw_terrain, title="Raw terrain")
-            # We skip the tile if too little habitat, or if we specify only a list of tiles
-            # to be analyzed.
-            skip_tile = ((interesting_tiles is not None and i not in interesting_tiles)
-                         or
-                         (np.mean(habitat) < minimum_habitat))
+                disp_fn(raw_permeability, title="Raw terrain")
+            # We skip a tile if: 
+            # - the habitat is not None, and too low, or, 
+            # - the habitat is None, and the permeability is too low. 
+            skip_tile = False
+            if raw_habitat is not None: 
+                habitat = np.maximum(raw_habitat, 0)
+                skip_tile = np.mean(habitat) < minimum_habitat
+            if not skip_tile:            
+                # Scales the permeability.
+                if scale_via_dictionary:
+                    permeability = dict_translate(raw_permeability, permeability_dictionary, default_val=0)
+                else:
+                    permeability = raw_permeability * permeability_scaling
+                # Checks whether we have to skip due to low permeability. 
+                if raw_habitat is None:
+                    skip_tile = np.mean(permeability) < minimum_habitat         
             if skip_tile:
                 if do_output:
                     # These lines are here just to fix a bug into the production of the output geotiff,
                     # which does not set all to zero before the output is done.
-                    repop_tile = Tile(ter_tile_iter.w, ter_tile_iter.h, ter_tile_iter.b, ter_tile_iter.c,
-                                     ter_tile_iter.x, ter_tile_iter.y, np.zeros_like(habitat))
+                    repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
+                                     per_tile_iter.x, per_tile_iter.y, np.zeros_like(habitat))
                     repop_file.set_tile(repop_tile)
                     if do_gradient:
-                        grad_tile = Tile(ter_tile_iter.w, ter_tile_iter.h, ter_tile_iter.b, ter_tile_iter.c,
-                                         ter_tile_iter.x, ter_tile_iter.y, np.zeros_like(habitat))
+                        grad_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
+                                         per_tile_iter.x, per_tile_iter.y, np.zeros_like(habitat))
                         grad_file.set_tile(grad_tile)
                 continue
             # We process the tile.
-            # First, we translate the terrain to correct resistance
-            terrain = dict_translate(raw_terrain, permeability_dictionary, default_val=0)
-            if display_tiles is True or i in display_tiles:
-                print("Terrain types", np.unique(raw_terrain))
-                disp_fn(terrain, title="Terrain transmission")
-            # Then, we processes the terrain and habitat tiles.
-            pop, grad = analysis_fn(habitat, terrain)
+            pop, grad = analysis_fn(permeability if raw_habitat is None else habitat, permeability)
             # Normalizes the tiles, to fit into the geotiff format.
             # The population is simply normalized with a max of 255. After all it is in [0, 1].
             # We need to use type float because clam is not implemented for all types.
@@ -284,10 +301,10 @@ def analyze_geotiffs(habitat_fn,
             # Prepares the tiles for writing.
             if do_output:
                 # Writes the tiles.
-                repop_tile = Tile(ter_tile_iter.w, ter_tile_iter.h, ter_tile_iter.b, ter_tile_iter.c, ter_tile_iter.x, ter_tile_iter.y, norm_pop)
+                repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_pop)
                 repop_file.set_tile(repop_tile)
                 if do_gradient:
-                    grad_tile = Tile(ter_tile_iter.w, ter_tile_iter.h, ter_tile_iter.b, ter_tile_iter.c, ter_tile_iter.x, ter_tile_iter.y, norm_grad)
+                    grad_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_grad)
                     grad_file.set_tile(grad_tile)
             if report_progress:
                 print(i, end=' ', flush=True)
@@ -317,9 +334,11 @@ def analyze_geotiffs(habitat_fn,
 def compute_connectivity(
         habitat_fn=None,
         terrain_fn=None,
+        permeability_dict=None,
+        permeability_fn=None,
+        permeability_scaling=1.0,
         connectivity_fn=None,
         flow_fn=None,
-        permeability_dict=None,
         gap_crossing=0,
         dispersal=None,
         num_gaps=None,
@@ -342,6 +361,8 @@ def compute_connectivity(
       (so that the flow is expressed in dB, like sound intensity), and clipped to the 0..255 range.
     :param habitat_fn: name of habitat geotiff, or GeoTiff object from habitat geotiff. This file must contain
         0 = non habitat, and 1 = habitat.
+        If this file is missing, then it is assumed that everywhere is suitable habitat, and that
+        only the permeability determines possible movement. This is useful for modeling mammals. 
     :param terrain_fn: name of terrain geotiff, or GeoTiff object from terrain geotiff.  This file contains
         terrain categories that are translated via permeability_dict.
     :param connectivity_fn: output file name for connectivity.
@@ -373,11 +394,12 @@ def compute_connectivity(
         in_memory is True.
     :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
     """
-    assert habitat_fn is not None and terrain_fn is not None
     assert type(habitat_fn) == str or type(habitat_fn) == GeoTiff
-    assert type(terrain_fn) == str or type(terrain_fn) == GeoTiff
-    assert connectivity_fn is not None
-    assert permeability_dict is not None
+    assert terrain_fn is not None or permeability_fn is not None
+    assert terrain_fn is None or permeability_dict is not None
+    assert terrain_fn is None or type(terrain_fn) == str or type(terrain_fn) == GeoTiff
+    assert permeability_fn is None or type(permeability_fn) == str or type(permeability_fn) == GeoTiff
+    
     if random_seed:
         torch.manual_seed(random_seed)
     if dispersal is None:
@@ -392,11 +414,14 @@ def compute_connectivity(
         gap_crossing=gap_crossing)
     # Applies it.
     return analyze_geotiffs(
-        habitat_fn, terrain_fn,
+        habitat_fn, 
+        terrain_fn,
         permeability_dict,
+        permeability_fn, 
+        permeability_scaling,
         analysis_fn=analysis_fn,
         single_tile=single_tile,
-        block_size=tile_size,
+        tile_size=tile_size,
         border_size=tile_border,
         generate_gradient=(flow_fn is not None if not in_memory else generate_flow_memory),
         minimum_habitat=minimum_habitat,
