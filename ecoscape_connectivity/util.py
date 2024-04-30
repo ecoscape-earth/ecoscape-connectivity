@@ -50,7 +50,7 @@ class SingleIterator(object):
     pairs of the form (None, i), where i is given by the iterator."""
     
     def __init__(self, it):
-        self.it = it
+        self.it = iter(it)
         
     def __iter__(self):
         return self

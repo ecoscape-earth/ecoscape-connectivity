@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ecoscape-connectivity"
-version = "0.0.8"
+version = "0.0.9"
 authors = [
   {name="Luca de Alfaro", email="luca@ucsc.edu"},
   {name="Coen Adler", email="ctadler@ucsc.edu"},
