@@ -265,11 +265,11 @@ def analyze_geotiffs(habitat_fn,
                     # These lines are here just to fix a bug into the production of the output geotiff,
                     # which does not set all to zero before the output is done.
                     repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
-                                     per_tile_iter.x, per_tile_iter.y, np.zeros_like(habitat))
+                                     per_tile_iter.x, per_tile_iter.y, np.zeros_like(raw_permeability))
                     repop_file.set_tile(repop_tile)
                     if do_gradient:
                         grad_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
-                                         per_tile_iter.x, per_tile_iter.y, np.zeros_like(habitat))
+                                         per_tile_iter.x, per_tile_iter.y, np.zeros_like(raw_permeability))
                         grad_file.set_tile(grad_tile)
                 continue
             # We process the tile.
