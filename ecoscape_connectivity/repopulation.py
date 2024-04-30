@@ -218,8 +218,6 @@ def analyze_geotiffs(habitat_fn,
         scale_via_dictionary = False
         permeability_geotiff = GeoTiff.from_file(permeability_fn) if type(permeability_fn) == str else permeability_fn
 
-
-
     def do_analysis(repop_file, grad_file):
         do_output = (repop_file is not None)
         # Reads the files.
