@@ -9,6 +9,8 @@ from contextlib import nullcontext
 from scgt import GeoTiff, Tile
 from .util import dict_translate, SingleIterator
 
+from osgeo import gdal
+gdal.DontUseExceptions()
 
 class StochasticRepopulateFast(nn.Module):
     """
@@ -159,10 +161,10 @@ def analyze_tile_torch(
     return f
 
 
-def analyze_geotiffs(habitat_fn, 
-                     terrain_fn,
-                     permeability_dictionary,
-                     permeability_fn,
+def analyze_geotiffs(habitat_fn=None, 
+                     terrain_fn=None,
+                     permeability_dictionary=None,
+                     permeability_fn=None,
                      permeability_scaling=1.0,
                      analysis_fn=None,
                      single_tile=False,
@@ -209,15 +211,15 @@ def analyze_geotiffs(habitat_fn,
     # We specify permeability either via a terrain and a dictionary, or via a permeability file 
     # with scaling.  In either case, we have a permeability geotiff, which we then have to 
     # either scale or process via a dictionary.
-    if terrain_fn is not None:
-        # We use terrain and dictionary. 
-        scale_via_dictionary = True
-        permeability_geotiff = GeoTiff.from_file(terrain_fn) if type(terrain_fn) == str else terrain_fn
-    else:
+    if permeability_fn is not None:
         # We are directly given a permeability file, which we scale via a constant. 
         scale_via_dictionary = False
         permeability_geotiff = GeoTiff.from_file(permeability_fn) if type(permeability_fn) == str else permeability_fn
-
+    else:
+        # We use terrain and dictionary. 
+        scale_via_dictionary = True
+        permeability_geotiff = GeoTiff.from_file(terrain_fn) if type(terrain_fn) == str else terrain_fn
+        
     def do_analysis(repop_file, grad_file):
         do_output = (repop_file is not None)
         # Reads the files.
@@ -256,7 +258,13 @@ def analyze_geotiffs(habitat_fn,
                 if scale_via_dictionary:
                     permeability = dict_translate(raw_permeability, permeability_dictionary, default_val=0)
                 else:
+                    # DEBUG
+                    # Some software uses -infty for 0. 
+                    raw_permeability = np.maximum(raw_permeability, 0)
                     permeability = raw_permeability * permeability_scaling
+                    # Clip it between 0 and 1.
+                    permeability = np.clip(permeability, 0, 1)
+                    print('raw_permeability:', permeability.shape, permeability.dtype, np.min(permeability), np.max(permeability))
                 # Checks whether we have to skip due to low permeability. 
                 if raw_habitat is None:
                     skip_tile = np.mean(permeability) < minimum_habitat         
@@ -331,10 +339,10 @@ def analyze_geotiffs(habitat_fn,
 
 def compute_connectivity(
         habitat_fn=None,
-        terrain_fn=None,
-        permeability_dict=None,
         permeability_fn=None,
         permeability_scaling=1.0,
+        terrain_fn=None,
+        permeability_dict=None,
         connectivity_fn=None,
         flow_fn=None,
         gap_crossing=0,
@@ -361,14 +369,19 @@ def compute_connectivity(
         0 = non habitat, and 1 = habitat.
         If this file is missing, then it is assumed that everywhere is suitable habitat, and that
         only the permeability determines possible movement. This is useful for modeling mammals. 
+    :param permeability_fn: File name for permeability. If this is given, the permeability is read from 
+        this file, and scaled according to permeability_scaling.  If this is not given, then the permeability
+        is derived from the terrain_fn file, and the dictionary. 
+    :param permeability_scaling: scaling factor for the permeability.  This is used only if the permeability
+        is read from a file.
     :param terrain_fn: name of terrain geotiff, or GeoTiff object from terrain geotiff.  This file contains
         terrain categories that are translated via permeability_dict.
-    :param connectivity_fn: output file name for connectivity.
-    :param flow_fn: output file name for flow.  If None, the flow is not computed, and the
-        computation is faster.
     :param permeability_dict: Permeability dictionary.  Gives the permeability of each
         terrain type, translating from the terrain codes, to the permeability in [0, 1].
         If a terrain type is not found in the dictionary, it is assumed it has permeability 0.
+    :param connectivity_fn: output file name for connectivity.
+    :param flow_fn: output file name for flow.  If None, the flow is not computed, and the
+        computation is faster.
     :param gap_crossing: size of gap crossing in pixels. 0 means animals move via contiguous pixels.
     :param dispersal: dispersal distance in pixels.
     :param num_gaps: number of gaps to cross. Deprecated.  If dispersal is None, then this is used to 
@@ -412,11 +425,11 @@ def compute_connectivity(
         gap_crossing=gap_crossing)
     # Applies it.
     return analyze_geotiffs(
-        habitat_fn, 
-        terrain_fn,
-        permeability_dict,
-        permeability_fn, 
-        permeability_scaling,
+        habitat_fn=habitat_fn, 
+        terrain_fn=terrain_fn,
+        permeability_dictionary=permeability_dict,
+        permeability_fn=permeability_fn, 
+        permeability_scaling=permeability_scaling,
         analysis_fn=analysis_fn,
         single_tile=single_tile,
         tile_size=tile_size,
