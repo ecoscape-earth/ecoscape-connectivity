@@ -10,7 +10,7 @@ from scgt import GeoTiff, Tile
 from .util import dict_translate, SingleIterator
 
 from osgeo import gdal
-gdal.DontUseExceptions()
+gdal.UseExceptions()
 
 class StochasticRepopulateFast(nn.Module):
     """
@@ -45,7 +45,6 @@ class StochasticRepopulateFast(nn.Module):
         self.randomize_dest = randomize_dest
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
-
 
     def forward(self, seed):
         """
@@ -178,7 +177,8 @@ def analyze_geotiffs(habitat_fn=None,
                      output_repop_fn=None,
                      output_grad_fn=None,
                      report_progress=False,
-                     in_memory=False):
+                     in_memory=False,
+                     float_output=False):
     '''
     Reads a geotiff (or better, a pair of habitat and terrain geotiffs),
     iterating over the tiles, analyzing it with a specified analysis function,
@@ -258,13 +258,11 @@ def analyze_geotiffs(habitat_fn=None,
                 if scale_via_dictionary:
                     permeability = dict_translate(raw_permeability, permeability_dictionary, default_val=0)
                 else:
-                    # DEBUG
                     # Some software uses -infty for 0. 
                     raw_permeability = np.maximum(raw_permeability, 0)
                     permeability = raw_permeability * permeability_scaling
                     # Clip it between 0 and 1.
                     permeability = np.clip(permeability, 0, 1)
-                    print('raw_permeability:', permeability.shape, permeability.dtype, np.min(permeability), np.max(permeability))
                 # Checks whether we have to skip due to low permeability. 
                 if raw_habitat is None:
                     skip_tile = np.mean(permeability) < minimum_habitat         
@@ -285,19 +283,20 @@ def analyze_geotiffs(habitat_fn=None,
             # Normalizes the tiles, to fit into the geotiff format.
             # The population is simply normalized with a max of 255. After all it is in [0, 1].
             # We need to use type float because clam is not implemented for all types.
-            # print(isinstance(pop))
-            if isinstance(pop, np.ndarray):
-                # print('prev sum:', np.sum(pop), np.sum(pop)*255)
-                # np.set_printoptions(threshold=2000)
-                # print(pop[400:450,400:450])
-                norm_pop = np.expand_dims(np.clip(pop * 255, 0, 255).astype(np.uint8), axis=0)
-                norm_grad = np.expand_dims(np.clip(np.log10(1. + grad) * 20., 0, 255).astype(np.uint8), axis=0)
-                # print(norm_pop.shape)
-                # print('new sum:', np.sum(norm_pop.astype(int)))
-                # print(norm_pop.shape, norm_grad.shape)
-            else:
-                norm_pop = torch.clamp(pop.type(torch.float) * 255, 0, 255).type(torch.uint8)
-                norm_grad = torch.clamp(torch.log10(1. + grad.type(torch.float)) * 20., 0, 255).type(torch.uint8)
+            if float_output:
+                if isinstance(pop, np.ndarray):
+                    norm_pop = np.expand_dims(pop.numpy().astype(np.float), axis=0)
+                    norm_grad = np.expand_dims(np.log10(1. + grad) * 20., axis=0)
+                else:
+                    norm_pop = pop.detach().numpy().astype(np.float)
+                    norm_grad = np.log10(1. + grad.detach().numpy().astype(np.float)) * 20.
+            else:                        
+                if isinstance(pop, np.ndarray):
+                    norm_pop = np.expand_dims(np.clip(pop * 255, 0, 255).astype(np.uint8), axis=0)
+                    norm_grad = np.expand_dims(np.clip(np.log10(1. + grad) * 20., 0, 255).astype(np.uint8), axis=0)
+                else:
+                    norm_pop = torch.clamp(pop.type(torch.float) * 255, 0, 255).type(torch.uint8)
+                    norm_grad = torch.clamp(torch.log10(1. + grad.type(torch.float)) * 20., 0, 255).type(torch.uint8)
 
             # Displays the output if so asked.
             if display_tiles is True or i in display_tiles:
@@ -327,8 +326,11 @@ def analyze_geotiffs(habitat_fn=None,
         return repop_output, grad_output
     elif output_repop_fn is not None:
         # Produce the outputs on disk.
-        with GeoTiff.copy_to_new_file(output_repop_fn, permeability_geotiff.profile) as repop_output:
-            with GeoTiff.copy_to_new_file(output_grad_fn, permeability_geotiff.profile) if do_gradient else nullcontext() as grad_output:
+        profile = permeability_geotiff.profile
+        if float_output:
+            profile['dtype'] = 'float32'
+        with GeoTiff.copy_to_new_file(output_repop_fn, profile) as repop_output:
+            with GeoTiff.copy_to_new_file(output_grad_fn, profile) if do_gradient else nullcontext() as grad_output:
                 do_analysis(repop_output, grad_output)
     else:
         # Just run the analysis without outputs.
@@ -356,15 +358,22 @@ def compute_connectivity(
         minimum_habitat=1e-4,
         random_seed=None,
         in_memory=False,
-        generate_flow_memory=False
+        generate_flow_memory=False,
+        float_output=False,
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
     The outputs are encoded as follows:
+    If integer output (the default) is selected: 
+    
     - For connectivity, the values from [0, 1] are rescaled to the range 0..255 and encoded
       as integers.
     - For flow, the values from [0, infty) are encoded in log-scale via 20 * log_10(1 + f)
       (so that the flow is expressed in dB, like sound intensity), and clipped to the 0..255 range.
+    
+    If floating point output is selected: 
+    - The connectivity output is in [0, 1] and the flow output is in [0, infty), obtained via 20 * log_10(1 + f).
+    
     :param habitat_fn: name of habitat geotiff, or GeoTiff object from habitat geotiff. This file must contain
         0 = non habitat, and 1 = habitat.
         If this file is missing, then it is assumed that everywhere is suitable habitat, and that
@@ -403,6 +412,7 @@ def compute_connectivity(
         will be returned. Flow is also generated only if generate_flow_memory is True.
     :param generate_flow_memory: whether the flow should be generated in memory. Only used if
         in_memory is True.
+    :param float_output: use floating point output, generating a floating point tiff. 
     :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
     """
     assert habitat_fn is None or type(habitat_fn) == str or type(habitat_fn) == GeoTiff
@@ -417,7 +427,7 @@ def compute_connectivity(
         assert num_gaps is not None, "One of dispersal and gap crossing should be specified."
         dispersal = (1 + gap_crossing) * num_gaps
     # Builds the analysis function.
-    analysis_fn = analyze_tile_torch(
+    analysis_function = analyze_tile_torch(
         seed_density=seed_density,
         produce_gradient=flow_fn is not None,
         dispersal=dispersal,
@@ -430,7 +440,7 @@ def compute_connectivity(
         permeability_dictionary=permeability_dict,
         permeability_fn=permeability_fn, 
         permeability_scaling=permeability_scaling,
-        analysis_fn=analysis_fn,
+        analysis_fn=analysis_function,
         single_tile=single_tile,
         tile_size=tile_size,
         border_size=tile_border,
@@ -438,5 +448,6 @@ def compute_connectivity(
         minimum_habitat=minimum_habitat,
         output_repop_fn=connectivity_fn,
         output_grad_fn=flow_fn,
+        float_output=float_output,
         in_memory=in_memory
     )

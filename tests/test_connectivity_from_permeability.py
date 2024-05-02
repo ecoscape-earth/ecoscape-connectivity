@@ -12,7 +12,7 @@ PERMEABILITY_SCALING = 1 / 0.5731019
 CONNECTIVITY_PATH = os.path.join(DATA_PATH, "Outputs/connectivity.tif")
 FLOW_PATH = os.path.join(DATA_PATH, "Outputs/flow.tif")
 
-def test_connectivity():
+def test_connectivity(float_output=False):
     ecoscape_connectivity.compute_connectivity(
         permeability_fn=PERMEABILITY_PATH,   
         permeability_scaling=PERMEABILITY_SCALING,     
@@ -21,6 +21,8 @@ def test_connectivity():
         single_tile=False,
         num_simulations=2,
         dispersal=ecoscape_connectivity.half_cauchy(4, 8),
+        float_output=True,
     )
 
 test_connectivity()
+test_connectivity(float_output=True)
