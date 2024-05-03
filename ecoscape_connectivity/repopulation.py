@@ -285,11 +285,11 @@ def analyze_geotiffs(habitat_fn=None,
             # We need to use type float because clam is not implemented for all types.
             if float_output:
                 if isinstance(pop, np.ndarray):
-                    norm_pop = np.expand_dims(pop.numpy().astype(np.float), axis=0)
+                    norm_pop = np.expand_dims(pop.numpy().astype(float), axis=0)
                     norm_grad = np.expand_dims(np.log10(1. + grad) * 20., axis=0)
                 else:
-                    norm_pop = pop.detach().numpy().astype(np.float)
-                    norm_grad = np.log10(1. + grad.detach().numpy().astype(np.float)) * 20.
+                    norm_pop = pop.detach().numpy().astype(float)
+                    norm_grad = np.log10(1. + grad.detach().numpy().astype(float)) * 20.
             else:                        
                 if isinstance(pop, np.ndarray):
                     norm_pop = np.expand_dims(np.clip(pop * 255, 0, 255).astype(np.uint8), axis=0)
