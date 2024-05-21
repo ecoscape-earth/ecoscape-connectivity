@@ -272,11 +272,11 @@ def analyze_geotiffs(habitat_fn=None,
                     # which does not set all to zero before the output is done.
                     repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
                                      per_tile_iter.x, per_tile_iter.y, np.zeros_like(raw_permeability))
-                    repop_file.set_tile(repop_tile)
+                    repop_file.set_tile(repop_tile, geotiff_includes_border=False)
                     if do_gradient:
                         grad_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
                                          per_tile_iter.x, per_tile_iter.y, np.zeros_like(raw_permeability))
-                        grad_file.set_tile(grad_tile)
+                        grad_file.set_tile(grad_tile, geotiff_includes_border=False)
                 continue
             # We process the tile.
             pop, grad = analysis_fn(permeability if raw_habitat is None else habitat, permeability)
@@ -307,10 +307,10 @@ def analyze_geotiffs(habitat_fn=None,
             if do_output:
                 # Writes the tiles.
                 repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_pop)
-                repop_file.set_tile(repop_tile)
+                repop_file.set_tile(repop_tile, geotiff_includes_border=False)
                 if do_gradient:
                     grad_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_grad)
-                    grad_file.set_tile(grad_tile)
+                    grad_file.set_tile(grad_tile, geotiff_includes_border=False)
             if report_progress:
                 print(i, end=' ', flush=True)
         if report_progress:
@@ -324,11 +324,15 @@ def analyze_geotiffs(habitat_fn=None,
         # These are open memory files. The caller should close them with scgt's GeoTiff.close_memory_file()
         # once they are not needed anymore.
         return repop_output, grad_output
+    
     elif output_repop_fn is not None:
         # Produce the outputs on disk.
         profile = permeability_geotiff.profile
         if float_output:
             profile['dtype'] = 'float32'
+        # Computes the output bounds, keeping into account the border size.
+        profile['width'] -= 2 * border_size
+        profile['height'] -= 2 * border_size 
         with GeoTiff.copy_to_new_file(output_repop_fn, profile) as repop_output:
             with GeoTiff.copy_to_new_file(output_grad_fn, profile) if do_gradient else nullcontext() as grad_output:
                 do_analysis(repop_output, grad_output)
@@ -354,32 +358,36 @@ def compute_connectivity(
         seed_density=4,
         single_tile=False,
         tile_size=1000,
-        tile_border=256,
+        border_size=200,
         minimum_habitat=1e-4,
         random_seed=None,
         in_memory=False,
         generate_flow_memory=False,
-        float_output=False,
+        float_output=True,
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
     The outputs are encoded as follows:
-    If integer output (the default) is selected: 
-    
+
+    If floating point output is selected: 
+    - The connectivity output is in [0, 1].
+    - The flow output is in [0, infty), obtained via 20 * log_10(1 + f).
+
+    If integer output is selected: 
     - For connectivity, the values from [0, 1] are rescaled to the range 0..255 and encoded
       as integers.
     - For flow, the values from [0, infty) are encoded in log-scale via 20 * log_10(1 + f)
       (so that the flow is expressed in dB, like sound intensity), and clipped to the 0..255 range.
+
+    Integer output saves space, but floating point output is more accurate and intuitive to use.
     
-    If floating point output is selected: 
-    - The connectivity output is in [0, 1] and the flow output is in [0, infty), obtained via 20 * log_10(1 + f).
-    
-    :param habitat_fn: name of habitat geotiff, or GeoTiff object from habitat geotiff. This file must contain
+    :param habitat_fn: name of habitat geotiff, or GeoTiff (from the scgt packaage) object from habitat geotiff. This file must contain
         0 = non habitat, and 1 = habitat.
         If this file is missing, then it is assumed that everywhere is suitable habitat, and that
         only the permeability determines possible movement. This is useful for modeling mammals. 
-    :param permeability_fn: File name for permeability. If this is given, the permeability is read from 
-        this file, and scaled according to permeability_scaling.  If this is not given, then the permeability
+    :param permeability_fn: File name for permeability, or GeoTiff object (from scgt package) for the permeability. 
+        If this is given, the permeability is read from this file, and scaled according to 
+        permeability_scaling.  If this is not given, then the permeability
         is derived from the terrain_fn file, and the dictionary. 
     :param permeability_scaling: scaling factor for the permeability.  This is used only if the permeability
         is read from a file.
@@ -400,8 +408,10 @@ def compute_connectivity(
         dispersal distance.
     :param single_tile: if True, instead of iterating over small tiles, tries to read the input as a
         single large tile.  This is faster, but might not fit into memory.
-    :param tile_size: size of (square) tile in pixels.
-    :param tile_border: size of tile border in pixels.
+    :param tile_size: size of (square) tile in pixels.  This is the size that is processsed 
+        in one go.  Choose the tile as large as possible, so that it fits into the GPU memory.
+    :param border_size: size of analysis border in pixels. This has to be at least 
+        equal to the dispersal distance. 
     :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
         This saves time in countries where the habitat is only on a small portion.
     :param random_seed: random seed, if desired. 
@@ -414,6 +424,8 @@ def compute_connectivity(
         in_memory is True.
     :param float_output: use floating point output, generating a floating point tiff. 
     :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
+        If in_memory is True, the caller should close the files with scgt's GeoTiff.close_memory_file()
+        once they are not needed anymore.
     """
     assert habitat_fn is None or type(habitat_fn) == str or type(habitat_fn) == GeoTiff
     assert terrain_fn is not None or permeability_fn is not None
@@ -433,6 +445,7 @@ def compute_connectivity(
         dispersal=dispersal,
         num_simulations=num_simulations,
         gap_crossing=gap_crossing)
+    
     # Applies it.
     return analyze_geotiffs(
         habitat_fn=habitat_fn, 
@@ -443,7 +456,7 @@ def compute_connectivity(
         analysis_fn=analysis_function,
         single_tile=single_tile,
         tile_size=tile_size,
-        border_size=tile_border,
+        border_size=border_size,
         generate_gradient=(flow_fn is not None if not in_memory else generate_flow_memory),
         minimum_habitat=minimum_habitat,
         output_repop_fn=connectivity_fn,

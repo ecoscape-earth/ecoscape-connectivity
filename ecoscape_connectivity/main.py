@@ -23,7 +23,7 @@ def main(args):
         num_gaps=args.num_gap_crossings,
         single_tile=args.single_tile,
         tile_size=args.tile_size,
-        tile_border=args.tile_border,
+        border_size=args.border_size,
     )
 
 def cli():
@@ -54,8 +54,8 @@ def cli():
                         help="Processes the geotiffs in a single tile.")
     parser.add_argument('--tile_size', type=int, default=1000,
                         help="Edge of (square) tiles for analysis, in pixels.")
-    parser.add_argument('--tile_border', type=int, default=256,
-                        help="Border around a tile, in pixels")
+    parser.add_argument('--border_size', type=int, default=256,
+                        help="Border needed for analysis, in pixels")
 
     args = parser.parse_args()
     main(args)
