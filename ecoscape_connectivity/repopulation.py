@@ -316,31 +316,17 @@ def analyze_geotiffs(habitat_fn=None,
         if report_progress:
            print()
 
-    if in_memory:
-        # Produce the outputs in memory.
-        repop_output = GeoTiff.create_memory_file(permeability_geotiff.profile)
-        grad_output = GeoTiff.create_memory_file(permeability_geotiff.profile) if do_gradient else nullcontext()
-        do_analysis(repop_output, grad_output)
-        # These are open memory files. The caller should close them with scgt's GeoTiff.close_memory_file()
-        # once they are not needed anymore.
-        return repop_output, grad_output
-    
-    elif output_repop_fn is not None:
-        # Produce the outputs on disk.
-        profile = permeability_geotiff.profile
-        if float_output:
-            profile['dtype'] = 'float32'
-        # Computes the output bounds, keeping into account the border size.
-        profile['width'] -= 2 * border_size
-        profile['height'] -= 2 * border_size 
-        with GeoTiff.copy_to_new_file(output_repop_fn, profile) as repop_output:
-            with GeoTiff.copy_to_new_file(output_grad_fn, profile) if do_gradient else nullcontext() as grad_output:
-                do_analysis(repop_output, grad_output)
-    else:
-        # Just run the analysis without outputs.
-        do_analysis(None, None)
-    
-    return None, None
+    # Produce the outputs on disk.
+    out_bounds = permeability_geotiff.get_bounds_within_border(border_size)
+    data_type = 'float32' if float_output else None    
+    with permeability_geotiff.crop_to_new_file(
+        out_bounds, data_type=data_type, filename=output_repop_fn, 
+        in_memory=in_memory) as repop_output:
+        with permeability_geotiff.crop_to_new_file(
+            out_bounds, data_type=data_type, filename=output_grad_fn,
+            in_memory=in_memory) if do_gradient else nullcontext() as grad_output:
+            do_analysis(repop_output, grad_output)
+    return repop_output, grad_output
 
 
 def compute_connectivity(
