@@ -225,12 +225,14 @@ def analyze_geotiffs(habitat_fn=None,
         # Reads the files.
         # Iterates through the tiles.
         if single_tile:
+            print("Single tile")
             # We read the geotiffs as a single tile.
             joint_reader = [
                 (habitat_geotiff.get_all_as_tile() if habitat_geotiff is not None else None,
                  permeability_geotiff.get_all_as_tile())
             ]
         else:
+            print("Not single tile")
             # We create readers to iterate over the tiles.
             per_reader = permeability_geotiff.get_reader(b=border_size, w=tile_size, h=tile_size)
             if habitat_geotiff is None:
@@ -241,6 +243,10 @@ def analyze_geotiffs(habitat_fn=None,
                 joint_reader = zip(hab_reader, per_reader)        
         # We process each tile.
         for i, (hab_tile_iter, per_tile_iter) in enumerate(joint_reader):
+            print("Habitat tile:", "w:", hab_tile_iter.w, "h:", hab_tile_iter.h, "b:", hab_tile_iter.b, "c:", hab_tile_iter.c, "x:", hab_tile_iter.x, "y:", hab_tile_iter.y)
+            print("Habitat tile shape", hab_tile_iter.m.shape)
+            print("Permeability tile:", "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
+            print("Permeability tile shape", per_tile_iter.m.shape)
             raw_habitat = hab_tile_iter.m if hab_tile_iter is not None else None # Habitat tile
             raw_permeability = per_tile_iter.m # Permeability tile            
             if display_tiles is True or i in display_tiles:
@@ -306,6 +312,8 @@ def analyze_geotiffs(habitat_fn=None,
             # Prepares the tiles for writing.
             if do_output:
                 # Writes the tiles.
+                print("Writing tile", i, "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
+                print("Content:", norm_pop.shape)
                 repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_pop)
                 repop_file.set_tile(repop_tile, geotiff_includes_border=False)
                 if do_gradient:

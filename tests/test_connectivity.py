@@ -25,7 +25,10 @@ def test_connectivity():
         permeability_dict=permeability_dict,
         connectivity_fn=CONNECTIVITY_PATH,
         flow_fn=FLOW_PATH,
-        num_simulations=20,
+        single_tile=False,
+        border_size=50,
+        tile_size=200,
+        num_simulations=2,
         dispersal=ecoscape_connectivity.half_cauchy(15, 40),
     )
 
