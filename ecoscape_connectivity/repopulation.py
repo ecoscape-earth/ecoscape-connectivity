@@ -327,6 +327,7 @@ def analyze_geotiffs(habitat_fn=None,
 
     # Produce the outputs on disk.
     out_bounds = permeability_geotiff.get_bounds_within_border(border_size)
+    print("out_bounds:", out_bounds)
     data_type = 'float32' if float_output else None    
     with permeability_geotiff.crop_to_new_file(
         out_bounds, data_type=data_type, filename=output_repop_fn, 
