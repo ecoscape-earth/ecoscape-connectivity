@@ -33,3 +33,17 @@ def test_connectivity():
     )
 
 test_connectivity()
+
+def test_connectivity_single():
+    ecoscape_connectivity.compute_connectivity(
+        habitat_fn=HABITAT_PATH,
+        terrain_fn=TERRAIN_PATH,
+        permeability_dict=permeability_dict,
+        connectivity_fn=CONNECTIVITY_PATH,
+        flow_fn=FLOW_PATH,
+        single_tile=True,
+        num_simulations=2,
+        dispersal=ecoscape_connectivity.half_cauchy(15, 40),
+    )
+
+test_connectivity_single()
