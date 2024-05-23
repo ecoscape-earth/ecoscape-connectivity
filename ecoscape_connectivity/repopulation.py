@@ -228,8 +228,8 @@ def analyze_geotiffs(habitat_fn=None,
             print("Single tile")
             # We read the geotiffs as a single tile.
             joint_reader = [
-                (habitat_geotiff.get_all_as_tile() if habitat_geotiff is not None else None,
-                 permeability_geotiff.get_all_as_tile())
+                (habitat_geotiff.get_all_as_tile(b=border_size) if habitat_geotiff is not None else None,
+                 permeability_geotiff.get_all_as_tile(b=border_size))
             ]
         else:
             print("Not single tile")
