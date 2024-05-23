@@ -312,9 +312,10 @@ def analyze_geotiffs(habitat_fn=None,
             # Prepares the tiles for writing.
             if do_output:
                 # Writes the tiles.
+                repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_pop)
                 print("Writing tile", i, "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
                 print("Content:", norm_pop.shape)
-                repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_pop)
+                repop_tile.draw_tile(title=f"Repopulation tile {i}")
                 repop_file.set_tile(repop_tile, geotiff_includes_border=False)
                 if do_gradient:
                     grad_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_grad)
