@@ -42,6 +42,7 @@ def test_connectivity_single():
         connectivity_fn=CONNECTIVITY_PATH,
         flow_fn=FLOW_PATH,
         single_tile=True,
+        border_size=50,
         num_simulations=2,
         dispersal=ecoscape_connectivity.half_cauchy(15, 40),
     )
