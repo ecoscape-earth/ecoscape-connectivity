@@ -172,7 +172,6 @@ def analyze_geotiffs(habitat_fn=None,
                      generate_gradient=True,
                      interesting_tiles=None,
                      display_tiles=False,
-                     disp_fn=None,
                      minimum_habitat=1e-4,
                      output_repop_fn=None,
                      output_grad_fn=None,
@@ -189,7 +188,6 @@ def analyze_geotiffs(habitat_fn=None,
     dict permeability_dictionary: terrain to permeability mapping dictionary. 
         Terrains not listed are assigned a permeability of 0. 
     analysis_fn: function used for analysis.
-    disp_fn: function used to display a tile for debugging purposes.
     bool single_tile: if true, reads the entire geotiff as a single tile (no iteration).
     int tile_size: dimensions of tile
     int border_size: pixel border on each side
@@ -204,7 +202,7 @@ def analyze_geotiffs(habitat_fn=None,
     if display_tiles is False:
         display_tiles = []
 
-    do_gradient = generate_gradient and (output_grad_fn is not None if not in_memory else True)
+    compute_flow = generate_gradient and (output_grad_fn is not None if not in_memory else True)
     habitat_geotiff = None
     if habitat_fn is not None:
         habitat_geotiff = GeoTiff.from_file(habitat_fn) if type(habitat_fn) == str else habitat_fn
@@ -220,8 +218,8 @@ def analyze_geotiffs(habitat_fn=None,
         scale_via_dictionary = True
         permeability_geotiff = GeoTiff.from_file(terrain_fn) if type(terrain_fn) == str else terrain_fn
         
-    def do_analysis(repop_file, grad_file):
-        do_output = (repop_file is not None)
+    def do_analysis(conn_file, flow_file):
+        do_output = (conn_file is not None)
         # Reads the files.
         # Iterates through the tiles.
         if single_tile:
@@ -243,15 +241,15 @@ def analyze_geotiffs(habitat_fn=None,
                 joint_reader = zip(hab_reader, per_reader)        
         # We process each tile.
         for i, (hab_tile_iter, per_tile_iter) in enumerate(joint_reader):
-            print("Habitat tile:", "w:", hab_tile_iter.w, "h:", hab_tile_iter.h, "b:", hab_tile_iter.b, "c:", hab_tile_iter.c, "x:", hab_tile_iter.x, "y:", hab_tile_iter.y)
-            print("Habitat tile shape", hab_tile_iter.m.shape)
-            print("Permeability tile:", "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
-            print("Permeability tile shape", per_tile_iter.m.shape)
+            # print("Habitat tile:", "w:", hab_tile_iter.w, "h:", hab_tile_iter.h, "b:", hab_tile_iter.b, "c:", hab_tile_iter.c, "x:", hab_tile_iter.x, "y:", hab_tile_iter.y)
+            # print("Habitat tile shape", hab_tile_iter.m.shape)
+            # print("Permeability tile:", "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
+            # print("Permeability tile shape", per_tile_iter.m.shape)
             raw_habitat = hab_tile_iter.m if hab_tile_iter is not None else None # Habitat tile
             raw_permeability = per_tile_iter.m # Permeability tile            
             if display_tiles is True or i in display_tiles:
-                disp_fn(habitat, title="Raw habitat")
-                disp_fn(raw_permeability, title="Raw terrain")
+                habitat.draw_tile(title="Raw habitat tile")
+                habitat.draw_tile(title="Raw terrain tile")
             # We skip a tile if: 
             # - the habitat is not None, and too low, or, 
             # - the habitat is None, and the permeability is too low. 
@@ -276,50 +274,52 @@ def analyze_geotiffs(habitat_fn=None,
                 if do_output:
                     # These lines are here just to fix a bug into the production of the output geotiff,
                     # which does not set all to zero before the output is done.
-                    repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
+                    conn_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
                                      per_tile_iter.x, per_tile_iter.y, np.zeros_like(raw_permeability))
-                    repop_file.set_tile(repop_tile, geotiff_includes_border=False)
-                    if do_gradient:
-                        grad_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
+                    conn_file.set_tile(conn_tile, geotiff_includes_border=False)
+                    if compute_flow:
+                        flow_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
                                          per_tile_iter.x, per_tile_iter.y, np.zeros_like(raw_permeability))
-                        grad_file.set_tile(grad_tile, geotiff_includes_border=False)
+                        flow_file.set_tile(flow_tile, geotiff_includes_border=False)
                 continue
             # We process the tile.
-            pop, grad = analysis_fn(permeability if raw_habitat is None else habitat, permeability)
+            connectivity_tile, flow_tile = analysis_fn(permeability if raw_habitat is None else habitat, permeability)
             # Normalizes the tiles, to fit into the geotiff format.
             # The population is simply normalized with a max of 255. After all it is in [0, 1].
             # We need to use type float because clam is not implemented for all types.
             if float_output:
-                if isinstance(pop, np.ndarray):
-                    norm_pop = np.expand_dims(pop.numpy().astype(float), axis=0)
-                    norm_grad = np.expand_dims(np.log10(1. + grad) * 20., axis=0)
+                if isinstance(connectivity_tile, np.ndarray):
+                    connectivity_raster = np.expand_dims(connectivity_tile.numpy().astype(float), axis=0)
+                    flow_raster = np.expand_dims(np.log10(1. + flow_tile) * 20., axis=0)
                 else:
-                    norm_pop = pop.detach().numpy().astype(float)
-                    norm_grad = np.log10(1. + grad.detach().numpy().astype(float)) * 20.
+                    connectivity_raster = connectivity_tile.detach().numpy().astype(float)
+                    flow_raster = np.log10(1. + flow_tile.detach().numpy().astype(float)) * 20.
             else:                        
-                if isinstance(pop, np.ndarray):
-                    norm_pop = np.expand_dims(np.clip(pop * 255, 0, 255).astype(np.uint8), axis=0)
-                    norm_grad = np.expand_dims(np.clip(np.log10(1. + grad) * 20., 0, 255).astype(np.uint8), axis=0)
+                if isinstance(connectivity_tile, np.ndarray):
+                    connectivity_raster = np.expand_dims(np.clip(connectivity_tile * 255, 0, 255).astype(np.uint8), axis=0)
+                    flow_raster = np.expand_dims(np.clip(np.log10(1. + flow_tile) * 20., 0, 255).astype(np.uint8), axis=0)
                 else:
-                    norm_pop = torch.clamp(pop.type(torch.float) * 255, 0, 255).type(torch.uint8)
-                    norm_grad = torch.clamp(torch.log10(1. + grad.type(torch.float)) * 20., 0, 255).type(torch.uint8)
+                    connectivity_raster = torch.clamp(connectivity_tile.type(torch.float) * 255, 0, 255).type(torch.uint8)
+                    flow_raster = torch.clamp(torch.log10(1. + flow_tile.type(torch.float)) * 20., 0, 255).type(torch.uint8)
 
             # Displays the output if so asked.
             if display_tiles is True or i in display_tiles:
-                disp_fn(norm_pop, title="Repopulation")
-                disp_fn(norm_grad, title="Gradient")
+                connectivity_raster.draw_tile(title="Connectivity")
+                flow_raster.draw_tile(title="Gradient")
 
             # Prepares the tiles for writing.
             if do_output:
                 # Writes the tiles.
-                repop_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_pop)
-                print("Writing tile", i, "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
-                print("Content:", norm_pop.shape)
-                repop_tile.draw_tile(title=f"Repopulation tile {i}")
-                repop_file.set_tile(repop_tile, geotiff_includes_border=False)
-                if do_gradient:
-                    grad_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, norm_grad)
-                    grad_file.set_tile(grad_tile, geotiff_includes_border=False)
+                conn_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, connectivity_raster)
+                # print("Writing tile", i, "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
+                # print("Content:", connectivity_raster.shape)
+                # conn_tile.draw_tile(title=f"Repopulation tile {i}")
+                conn_file.set_tile(conn_tile, geotiff_includes_border=False)
+                # print("Result:")
+                # conn_file.draw_geotiff()
+                if compute_flow:
+                    flow_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, flow_raster)
+                    flow_file.set_tile(flow_tile, geotiff_includes_border=False)
             if report_progress:
                 print(i, end=' ', flush=True)
         if report_progress:
@@ -329,12 +329,12 @@ def analyze_geotiffs(habitat_fn=None,
     data_type = 'float32' if float_output else None    
     with permeability_geotiff.crop_to_new_file(
         border_size, data_type=data_type, filename=output_repop_fn, 
-        in_memory=in_memory) as repop_output:
+        in_memory=in_memory) as connectivity_output:
         with permeability_geotiff.crop_to_new_file(
             border_size, data_type=data_type, filename=output_grad_fn,
-            in_memory=in_memory) if do_gradient else nullcontext() as grad_output:
-            do_analysis(repop_output, grad_output)
-    return repop_output, grad_output
+            in_memory=in_memory) if compute_flow else nullcontext() as flow_output:
+            do_analysis(connectivity_output, flow_output)
+    return connectivity_output, flow_output
 
 
 def compute_connectivity(
@@ -354,10 +354,10 @@ def compute_connectivity(
         tile_size=1000,
         border_size=200,
         minimum_habitat=1e-4,
+        float_output=True,
         random_seed=None,
         in_memory=False,
         generate_flow_memory=False,
-        float_output=True,
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
