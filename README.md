@@ -56,14 +56,30 @@ def compute_connectivity()
         generate_flow_memory=False,
 ```
 
+### GPU recommended
+
+The computation will be much faster if you run it with GPU support.
+We recommend at least a T2-equivalent GPU or better. 
+
 ### Output
 
-The computation will be much faster if you run it with GPU support.  The output connectivity and flow are encoded in the output geotiffs as follows: 
+Given an input raster of size $n \times m$, and a border size for the analysis of $b$, the output will consist in rasters of size $(n - 2b) \times (m - 2b)$, so that the border is _not_ included in the output. 
+The output consists in the connectivity raster, and if requested, in the flow raster. 
+Such layers are encoded as geotiffs as follows. 
+
+If `float_output` is True (the default), the outputs are floating point rasters, with the following encoding:
+
+- For connectivity, the values are in the range [0, 1], where 0 corresponds to no connectivity, and 1 to maximum connectivity.
+- For flow, the values are in the range [0, $\infty$), and are encoded as $20 \log_{10}(1 + f)$, where $f$ is the flow.  Thus, the flow is expressed in a logarithmic scale, which helps in visualizing it, given its wide range. 
+
+If `float_output` is False, the outputs are 8-bit integer rasters, with the following encoding:
 
 - For connectivity, the values from [0, 1] are linearly rescaled to the range 0..255 and encoded as integers, so that 0 corresponds to no connectivity, and 255 to maximum connectivity. 
 - For flow, the values of $f \in [0, \infty)$ are encoded in log-scale via 
   $20 \cdot log_{10} (1 + f)$ (so that the flow is expressed in dB, like 
   sound intensity), and clipped to integers in the 0..255 range.
+
+The use of `float_output = False` is not recommended, and it may become deprecated in the future. 
 
 ### Arguments: 
 
