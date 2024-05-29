@@ -13,7 +13,7 @@ def main(args):
 
     compute_connectivity(
         habitat_fn=args.habitat,
-        terrain_fn=args.terrain,
+        landcover_fn=args.landcover,
         permeability_dict=transmission_d,
         connectivity_fn=args.connectivity,
         flow_fn=args.flow,
@@ -30,8 +30,8 @@ def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument('--habitat', type=os.path.abspath, default=None,
                         help='Filename to a geotiff of the bird\'s habitat.')
-    parser.add_argument('--terrain', type=os.path.abspath, default=None,
-                        help='Filename to a geotiff of the terrain.')
+    parser.add_argument('--landcover', type=os.path.abspath, default=None,
+                        help='Filename to a geotiff of the landcover.')
     parser.add_argument('--permeability', type=os.path.abspath, default=None,
                         help='Filename to a CSV dictionary of the terrain permeability.'
                         'This should be a CSV with two columns, map_code, and transmission, the latter between 0 and 1.')

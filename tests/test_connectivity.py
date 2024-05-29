@@ -8,7 +8,7 @@ import ecoscape_connectivity
 DATA_PATH="tests/assets"
 
 HABITAT_PATH = os.path.join(DATA_PATH, "habitat_small.tif")
-TERRAIN_PATH = os.path.join(DATA_PATH, "terrain_small.tif")
+LANDCOVER_PATH = os.path.join(DATA_PATH, "terrain_small.tif")
 PERMEABILITY_PATH = os.path.join(DATA_PATH, "terrain_permeability.csv")
 
 with open(PERMEABILITY_PATH, mode='r') as infile:
@@ -21,7 +21,7 @@ FLOW_PATH = os.path.join(DATA_PATH, "Outputs/flow.tif")
 def test_connectivity():
     ecoscape_connectivity.compute_connectivity(
         habitat_fn=HABITAT_PATH,
-        terrain_fn=TERRAIN_PATH,
+        landcover_fn=LANDCOVER_PATH,
         permeability_dict=permeability_dict,
         connectivity_fn=CONNECTIVITY_PATH,
         flow_fn=FLOW_PATH,
@@ -37,7 +37,7 @@ test_connectivity()
 def test_connectivity_single():
     ecoscape_connectivity.compute_connectivity(
         habitat_fn=HABITAT_PATH,
-        terrain_fn=TERRAIN_PATH,
+        landcover_fn=LANDCOVER_PATH,
         permeability_dict=permeability_dict,
         connectivity_fn=CONNECTIVITY_PATH,
         flow_fn=FLOW_PATH,

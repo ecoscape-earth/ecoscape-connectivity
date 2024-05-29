@@ -161,7 +161,7 @@ def analyze_tile_torch(
 
 
 def analyze_geotiffs(habitat_fn=None, 
-                     terrain_fn=None,
+                     landcover_fn=None,
                      permeability_dictionary=None,
                      permeability_fn=None,
                      permeability_scaling=1.0,
@@ -184,7 +184,7 @@ def analyze_geotiffs(habitat_fn=None,
     and then writing the results back.
 
     str/GeoTiff habitat_fn: filename of habitat geotiff, or GeoTiff object from habitat geotiff
-    str/GeoTiff terrain_fn: filename of terrain geotiff, or GeoTiff object from terrain geotiff
+    str/GeoTiff landcover_fn: filename of terrain geotiff, or GeoTiff object from terrain geotiff
     dict permeability_dictionary: terrain to permeability mapping dictionary. 
         Terrains not listed are assigned a permeability of 0. 
     analysis_fn: function used for analysis.
@@ -216,7 +216,7 @@ def analyze_geotiffs(habitat_fn=None,
     else:
         # We use terrain and dictionary. 
         scale_via_dictionary = True
-        permeability_geotiff = GeoTiff.from_file(terrain_fn) if type(terrain_fn) == str else terrain_fn
+        permeability_geotiff = GeoTiff.from_file(landcover_fn) if type(landcover_fn) == str else landcover_fn
         
     def do_analysis(conn_file, flow_file):
         do_output = (conn_file is not None)
@@ -341,7 +341,7 @@ def compute_connectivity(
         habitat_fn=None,
         permeability_fn=None,
         permeability_scaling=1.0,
-        terrain_fn=None,
+        landcover_fn=None,
         permeability_dict=None,
         connectivity_fn=None,
         flow_fn=None,
@@ -382,10 +382,10 @@ def compute_connectivity(
     :param permeability_fn: File name for permeability, or GeoTiff object (from scgt package) for the permeability. 
         If this is given, the permeability is read from this file, and scaled according to 
         permeability_scaling.  If this is not given, then the permeability
-        is derived from the terrain_fn file, and the dictionary. 
+        is derived from the landcover_fn file, and the dictionary. 
     :param permeability_scaling: scaling factor for the permeability.  This is used only if the permeability
         is read from a file.
-    :param terrain_fn: name of terrain geotiff, or GeoTiff object from terrain geotiff.  This file contains
+    :param landcover_fn: name of terrain geotiff, or GeoTiff object from terrain geotiff.  This file contains
         terrain categories that are translated via permeability_dict.
     :param permeability_dict: Permeability dictionary.  Gives the permeability of each
         terrain type, translating from the terrain codes, to the permeability in [0, 1].
@@ -422,9 +422,9 @@ def compute_connectivity(
         once they are not needed anymore.
     """
     assert habitat_fn is None or type(habitat_fn) == str or type(habitat_fn) == GeoTiff
-    assert terrain_fn is not None or permeability_fn is not None
-    assert terrain_fn is None or permeability_dict is not None
-    assert terrain_fn is None or type(terrain_fn) == str or type(terrain_fn) == GeoTiff
+    assert landcover_fn is not None or permeability_fn is not None
+    assert landcover_fn is None or permeability_dict is not None
+    assert landcover_fn is None or type(landcover_fn) == str or type(landcover_fn) == GeoTiff
     assert permeability_fn is None or type(permeability_fn) == str or type(permeability_fn) == GeoTiff
     
     if random_seed:
@@ -443,7 +443,7 @@ def compute_connectivity(
     # Applies it.
     return analyze_geotiffs(
         habitat_fn=habitat_fn, 
-        terrain_fn=terrain_fn,
+        landcover_fn=landcover_fn,
         permeability_dictionary=permeability_dict,
         permeability_fn=permeability_fn, 
         permeability_scaling=permeability_scaling,

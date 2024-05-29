@@ -12,6 +12,11 @@ to the EcoScape algorithm.
 * Natalie Valett (nvalett@ucsc.edu)
 * Jasmine Tai (cjtai@ucsc.edu)
 
+## Example Notebooks
+
+Here you can find a [Colab Notebook](https://drive.google.com/file/d/1Pz6lLyIs8Ju2UGkNtZqcNR72cFzn8UYc/view?usp=sharing) that 
+demonstrates connectivity computation. 
+
 ## Usage
 
 The package can be used both from the command line, and as a python module. 
@@ -32,7 +37,7 @@ def compute_connectivity()
         habitat_fn=None,
         permeability_fn=None,
         permeability_scaling=1.0,
-        terrain_fn=None,
+        landcover_fn=None,
         permeability_dict=None,
         connectivity_fn=None,
         flow_fn=None,
@@ -82,11 +87,6 @@ must contain 0 = non habitat, and 1 = habitat.
 - `random_seed`: used to initialize the random number generator used in seed selection and bird movement.  If None, the random number generator is initialized with a random seed.
 - `in_memory`: whether the connectivity and flow should be saved in memory only. If so, the results of the computation are returned as a pair `(repop_file, grad_file)`. Note that the parameters `connectivity_fn` and `flow_fn` are ignored if this is set to True, and at least connectivity will be returned. Flow is also generated only if `generate_flow_memory` is True.
 - `generate_flow_memory`: whether the flow should be generated in memory. Only used if in_memory is True.
-
-## Example Notebooks
-
-Here you can find a [Colab Notebook](https://drive.google.com/file/d/1Pz6lLyIs8Ju2UGkNtZqcNR72cFzn8UYc/view?usp=sharing) that 
-demonstrates connectivity computation. 
 
 ## Notes on Parameters
 
