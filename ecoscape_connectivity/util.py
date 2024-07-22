@@ -8,8 +8,18 @@ def dict_translate(np_arr, my_dict, default_val=0):
     """Translates the terrain type according to a dictionary mapping
     terrain type to values.
     """
-    u,inv = np.unique(np_arr,return_inverse = True)
+    u, inv = np.unique(np_arr,return_inverse = True)
     return np.array([(my_dict.get(x, default_val)) for x in u])[inv].reshape(np_arr.shape)
+
+def alt_dict_translate(np_arr, my_dict, default_val=0):
+    r = np.zeros_like(np_arr)
+    for k, v in my_dict.items():
+        r += (np_arr == k) * v
+    return r
+
+def get_terrain_codes(np_arr):
+    """Returns the terrain codes found in the array."""
+    return np.unique(np_arr)
 
 def read_resistance_csv(fn):
     """Reads a dictionary of terrain to resistance in csv, producing a dictionary."""
