@@ -358,6 +358,7 @@ def compute_connectivity(
         random_seed=None,
         in_memory=False,
         generate_flow_memory=False,
+        device=None
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
@@ -417,6 +418,8 @@ def compute_connectivity(
     :param generate_flow_memory: whether the flow should be generated in memory. Only used if
         in_memory is True.
     :param float_output: use floating point output, generating a floating point tiff. 
+    :param device: the device to be used for the computation. If None, then the device is chosen
+        automatically.  Valid values include: 'cpu', 'cuda', 'mps'.
     :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
         If in_memory is True, the caller should close the files with scgt's GeoTiff.close_memory_file()
         once they are not needed anymore.
@@ -434,6 +437,7 @@ def compute_connectivity(
         dispersal = (1 + gap_crossing) * num_gaps
     # Builds the analysis function.
     analysis_function = analyze_tile_torch(
+        device=device,
         seed_density=seed_density,
         produce_gradient=flow_fn is not None,
         dispersal=dispersal,
