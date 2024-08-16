@@ -109,7 +109,10 @@ def analyze_tile_torch(
     int num_simulations: how many simulations to run.  Must be multiple of batch_size.
     """
 
-    device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
+    device = device or (torch.device('cuda') if torch.cuda.is_available() else 
+                        torch.device('mps') if torch.backends.mps.is_available() else
+                        torch.device('cpu'))
+        
     assert type(gap_crossing) == int, "gap_crossing must be an int"
 
     # Computes the seed probability
@@ -169,8 +172,8 @@ def analyze_geotiffs(habitat_fn=None,
                      single_tile=False,
                      tile_size=1024,
                      border_size=64,
+                     include_border=False,
                      generate_gradient=True,
-                     interesting_tiles=None,
                      display_tiles=False,
                      minimum_habitat=1e-4,
                      output_repop_fn=None,
@@ -190,7 +193,8 @@ def analyze_geotiffs(habitat_fn=None,
     analysis_fn: function used for analysis.
     bool single_tile: if true, reads the entire geotiff as a single tile (no iteration).
     int tile_size: dimensions of tile
-    int border_size: pixel border on each side
+    int border_size: pixel border on each side of the tile. 
+    bool include_border: whether to include the border in the output or not.
     display_tiles: True, to display tiles, or list of tiles interesting enough to display.
     minimum_habitat: minimum average of habitat to skip the tile.
     string output_grad: file path for outputting the grad tif file.
@@ -202,6 +206,9 @@ def analyze_geotiffs(habitat_fn=None,
     if display_tiles is False:
         display_tiles = []
 
+    # We can include the border in the output only if we are working with a single tile.
+    include_border = include_border and single_tile
+    
     compute_flow = generate_gradient and (output_grad_fn is not None if not in_memory else True)
     habitat_geotiff = None
     if habitat_fn is not None:
@@ -276,11 +283,11 @@ def analyze_geotiffs(habitat_fn=None,
                     # which does not set all to zero before the output is done.
                     conn_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
                                      per_tile_iter.x, per_tile_iter.y, np.zeros_like(raw_permeability))
-                    conn_file.set_tile(conn_tile, geotiff_includes_border=False)
+                    conn_file.set_tile(conn_tile, geotiff_includes_border=include_border)
                     if compute_flow:
                         flow_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c,
                                          per_tile_iter.x, per_tile_iter.y, np.zeros_like(raw_permeability))
-                        flow_file.set_tile(flow_tile, geotiff_includes_border=False)
+                        flow_file.set_tile(flow_tile, geotiff_includes_border=include_border)
                 continue
             # We process the tile.
             connectivity_tile, flow_tile = analysis_fn(permeability if raw_habitat is None else habitat, permeability)
@@ -314,24 +321,27 @@ def analyze_geotiffs(habitat_fn=None,
                 # print("Writing tile", i, "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
                 # print("Content:", connectivity_raster.shape)
                 # conn_tile.draw_tile(title=f"Repopulation tile {i}")
-                conn_file.set_tile(conn_tile, geotiff_includes_border=False)
+                conn_file.set_tile(conn_tile, geotiff_includes_border=include_border)
                 # print("Result:")
                 # conn_file.draw_geotiff()
                 if compute_flow:
                     flow_tile = Tile(per_tile_iter.w, per_tile_iter.h, per_tile_iter.b, per_tile_iter.c, per_tile_iter.x, per_tile_iter.y, flow_raster)
-                    flow_file.set_tile(flow_tile, geotiff_includes_border=False)
+                    flow_file.set_tile(flow_tile, geotiff_includes_border=include_border)
             if report_progress:
                 print(i, end=' ', flush=True)
         if report_progress:
            print()
 
     # Produce the outputs on disk.
-    data_type = 'float32' if float_output else None    
+    data_type = 'float32' if float_output else None
+    # Computes the border size of the output geotiff, according to whether we wish 
+    # to include the border in the output or not. 
+    output_border_size = 0 if include_border else border_size
     with permeability_geotiff.crop_to_new_file(
-        border_size, data_type=data_type, filename=output_repop_fn, 
+        output_border_size, data_type=data_type, filename=output_repop_fn, 
         in_memory=in_memory) as connectivity_output:
         with permeability_geotiff.crop_to_new_file(
-            border_size, data_type=data_type, filename=output_grad_fn,
+            output_border_size, data_type=data_type, filename=output_grad_fn,
             in_memory=in_memory) if compute_flow else nullcontext() as flow_output:
             do_analysis(connectivity_output, flow_output)
     return connectivity_output, flow_output
@@ -353,6 +363,7 @@ def compute_connectivity(
         single_tile=False,
         tile_size=1000,
         border_size=200,
+        include_border=False,
         minimum_habitat=1e-4,
         float_output=True,
         random_seed=None,
@@ -407,6 +418,12 @@ def compute_connectivity(
         in one go.  Choose the tile as large as possible, so that it fits into the GPU memory.
     :param border_size: size of analysis border in pixels. This has to be at least 
         equal to the dispersal distance. 
+    :param include_border: whether to include the border in the output or not.  The border normally 
+        contains artifacts, and is not included in the output by default.  Hence, the output geotiff is 
+        smaller than the input one, as the border is not present. 
+        If you use single_tile, you can choose to include the border in the output, which will make
+        the output geotiff the same size as the input one (even though the connectivity and flow
+        at the border are computed as if there were no terrain outside of the geotiff).
     :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
         This saves time in countries where the habitat is only on a small portion.
     :param random_seed: random seed, if desired. 
@@ -455,6 +472,7 @@ def compute_connectivity(
         single_tile=single_tile,
         tile_size=tile_size,
         border_size=border_size,
+        include_border=include_border,
         generate_gradient=(flow_fn is not None if not in_memory else generate_flow_memory),
         minimum_habitat=minimum_habitat,
         output_repop_fn=connectivity_fn,
