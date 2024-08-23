@@ -14,6 +14,7 @@ def main(args):
     compute_connectivity(
         habitat_fn=args.habitat,
         landcover_fn=args.landcover,
+        permeability_fn=args.permeability,
         permeability_dict=transmission_d,
         connectivity_fn=args.connectivity,
         flow_fn=args.flow,
@@ -29,16 +30,16 @@ def main(args):
 def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument('--habitat', type=os.path.abspath, default=None,
-                        help='Filename to a geotiff of the bird\'s habitat.')
+                        help='Path of input habitat geotiff.')
     parser.add_argument('--landcover', type=os.path.abspath, default=None,
-                        help='Filename to a geotiff of the landcover.')
+                        help='Path of input landcover geotiff.')
     parser.add_argument('--permeability', type=os.path.abspath, default=None,
-                        help='Filename to a CSV dictionary of the terrain permeability.'
-                        'This should be a CSV with two columns, map_code, and transmission, the latter between 0 and 1.')
+                        help='Path of input CSV dictionary of the terrain permeability.'
+                        'This should be a CSV with at least two columns, map_code, and transmission, the latter between 0 and 1.')
     parser.add_argument('--connectivity', type=os.path.abspath, default=None,
-                        help='Filename to output geotiff file for connectivity.')
+                        help='Path to output geotiff file for connectivity.')
     parser.add_argument('--flow', type=os.path.abspath, default=None,
-                        help='Filename to output geotiff file for flow. If missing, no flow is computed.')
+                        help='Path to output geotiff file for flow. If missing, no flow is computed.')
     parser.add_argument('--num_simulations', type=int, default=400,
                         help='Number of simulations to perform.')
     parser.add_argument('--gap_crossing', type=int, default=0,
