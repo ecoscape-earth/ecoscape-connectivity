@@ -59,10 +59,11 @@ class RandomPropagate(nn.Module):
         self.spread_size = spread_size
         # Defines spread operator.
         self.mask_threshold = 1 - 0.5 ** (1 / num_spreads) 
-        self.min_transmission = 1 - self.mask_threshold
+        self.distance_coeff = np.log(0.3) / num_spreads
+        self.sqrt2 = np.sqrt(2)
+        self.min_transmission = 1 - 1e-4
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
-        print("New_9")
 
 
     def forward(self, seed):
@@ -92,8 +93,8 @@ class RandomPropagate(nn.Module):
             x7 = shift(x2, v=1, device=self.device)
             x8 = shift(x2, v=-1, device=self.device)
             shift_9 = [x5, x6, x7, x8]
-            xs_4 = [xxs * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x)) * self.goodness for xxs in shift_4]
-            xs_9 = [xxs * (self.min_transmission + (1. - self.min_transmission * 1.01) * torch.rand_like(x)) * self.goodness for xxs in shift_9]
+            xs_4 = [xxs * np.exp(self.distance_coeff) * self.goodness * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x)) for xxs in shift_4]
+            xs_9 = [xxs * np.exp(self.distance_coeff * self.sqrt2) * (self.min_transmission + (1. - self.min_transmission * 1.01) * torch.rand_like(x)) * self.goodness for xxs in shift_9]
             for xs in xs_4 + xs_9:
                 x = torch.maximum(x, xs)
             # for xs in shift_4:
