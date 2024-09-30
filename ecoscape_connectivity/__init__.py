@@ -13,5 +13,7 @@ from .repopulation_v2 import compute_connectivity as compute_connectivity_v2
 from .repopulation_v2 import RandomPropagate as RandomPropagate_v2
 from .repopulation_v3 import compute_connectivity as compute_connectivity_v3
 from .repopulation_v3 import RandomPropagate as RandomPropagate_v3
+from .repopulation_v4 import compute_connectivity as compute_connectivity_v4
+from .repopulation_v4 import RandomPropagate as RandomPropagate_v4
 from .repopulation_orig import compute_connectivity as compute_connectivity_orig
 from .repopulation_orig import RandomPropagate as RandomPropagate_orig

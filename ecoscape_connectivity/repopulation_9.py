@@ -93,7 +93,7 @@ class RandomPropagate(nn.Module):
             x8 = shift(x2, v=-1, device=self.device)
             shift_9 = [x5, x6, x7, x8]
             xs_4 = [xxs * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x)) * self.goodness for xxs in shift_4]
-            xs_9 = [xxs * (self.min_transmission + (1. - self.min_transmission * 1.1) * torch.rand_like(x)) * self.goodness for xxs in shift_9]
+            xs_9 = [xxs * (self.min_transmission + (1. - self.min_transmission * 1.01) * torch.rand_like(x)) * self.goodness for xxs in shift_9]
             for xs in xs_4 + xs_9:
                 x = torch.maximum(x, xs)
             # for xs in shift_4:
@@ -102,7 +102,7 @@ class RandomPropagate(nn.Module):
             # for xs in shift_9:
             #     xs *= (self.min_transmission + (1. - self.min_transmission * 1) * torch.rand_like(x)) * self.goodness
             #     x = torch.maximum(x, xs)
-            mask = x - xx > self.mask_threshold
+            mask = x - xx > 0.1
             if torch.sum(mask) == 0:
                 break
         x *= self.habitat
