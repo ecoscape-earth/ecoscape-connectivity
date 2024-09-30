@@ -12,14 +12,32 @@ from .util import dict_translate, SingleIterator
 from osgeo import gdal
 gdal.UseExceptions()
 
-class StochasticRepopulateFast(nn.Module):
+
+def shift(m, h=0, v=0, device=None):
+    device = device or torch.device("cpu")
+    """Shift a matrix m, filling border with 0, in the horizontal and vertial directions by the amount specified."""
+    b, sy, sx = m.shape
+    # First, let's do the horizontal shift.
+    if h > 0:
+        m = torch.cat([torch.zeros(b, sy, h, device=device), m[:, :, :-h]], dim=2)
+    elif h < 0:
+        m = torch.cat([m[:, :, -h:], torch.zeros(b, sy, -h, device=device)], dim=2)
+    # Then the vertical shift.
+    if v > 0:
+        m = torch.cat([torch.zeros(b, v, sx, device=device), m[:, :-v, :]], dim=1)
+    elif v < 0:
+        m = torch.cat([m[:, -v:, :], torch.zeros(b, -v, sx, device=device)], dim=1)
+    return m
+
+
+class RandomPropagate(nn.Module):
     """
     Important: THIS is the function to use in the repopulation experiments.
     This module models the repopulation of the habitat from a chosen percentage
     of the seed places.  The terrain and habitat are parameters, and the input is a
     similarly sized 0-1 (float) tensor of seed points."""
 
-    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1):
+    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1, device=None):
         """
         :param habitat: torch tensor (2-dim) representing the habitat.
         :param terrain: torch tensor (2-dim) representing the terrain.
@@ -33,6 +51,7 @@ class StochasticRepopulateFast(nn.Module):
         # spread_size and num_spreads have to be integers, not callables here. 
         assert type(spread_size) == int, "spread_size must be an int"
         assert type(num_spreads) == int, "num_spreads must be an int"
+        self.device = device or torch.device("cpu")
         self.habitat = habitat
         self.goodness = torch.nn.Parameter(torch.max(habitat, terrain), requires_grad=True)
         self.h, self.w = habitat.shape
@@ -40,10 +59,10 @@ class StochasticRepopulateFast(nn.Module):
         self.spread_size = spread_size
         # Defines spread operator.
         self.mask_threshold = 1 - 0.5 ** (1 / num_spreads) 
-        self.min_transmission = 1 - (2 * self.mask_threshold)
+        self.min_transmission = 1 - self.mask_threshold
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
-        print("New")
+        print("New_9")
 
 
     def forward(self, seed):
@@ -57,18 +76,33 @@ class StochasticRepopulateFast(nn.Module):
             # We put it into shape (1, w, h) because the pooling operator expects this.
             x = torch.unsqueeze(x, dim=0)
         # Now we must propagate n times.
+
         mask = x > 0
         for i in range(self.num_spreads):
             xx = x
-            # Masks and randomizes the source.
-            x = x * mask 
-            x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
-            # Then, we propagate.
-            x = self.spreader(x)
-            x *= self.goodness
-            # And finally we combine the results.
+            x0 = x * mask
+            # Produces the four shifts. 
+            x1 = shift(x0, h=1, device=self.device)
+            x2 = shift(x0, h=-1, device=self.device)
+            x3 = shift(x0, v=1, device=self.device)
+            x4 = shift(x0, v=-1, device=self.device)
+            shift_4 = [x1, x2, x3, x4]
+            x5 = shift(x1, v=1, device=self.device)
+            x6 = shift(x1, v=-1, device=self.device)
+            x7 = shift(x2, v=1, device=self.device)
+            x8 = shift(x2, v=-1, device=self.device)
+            shift_9 = [x5, x6, x7, x8]
+            xs_4 = [xxs * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x)) * self.goodness for xxs in shift_4]
+            xs_9 = [xxs * (self.min_transmission + (1. - self.min_transmission * 1.1) * torch.rand_like(x)) * self.goodness for xxs in shift_9]
+            for xs in xs_4 + xs_9:
+                x = torch.maximum(x, xs)
+            # for xs in shift_4:
+            #     xs *= (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x)) * self.goodness
+            #     x = torch.maximum(x, xs)
+            # for xs in shift_9:
+            #     xs *= (self.min_transmission + (1. - self.min_transmission * 1) * torch.rand_like(x)) * self.goodness
+            #     x = torch.maximum(x, xs)
             mask = x - xx > self.mask_threshold
-            x = torch.maximum(x, xx)
             if torch.sum(mask) == 0:
                 break
         x *= self.habitat
@@ -85,7 +119,7 @@ class StochasticRepopulateFast(nn.Module):
 
 def analyze_tile_torch(
         device=None,
-        analysis_class=StochasticRepopulateFast,
+        analysis_class=RandomPropagate,
         seed_density=4.0,
         produce_gradient=False,
         batch_size=1,
@@ -132,14 +166,14 @@ def analyze_tile_torch(
         # If the num_spreads and spread_size are constant, then we can use a fixed repopulator, which is more efficient.
         if not callable(dispersal):
             num_spreads = int(0.5 + dispersal / (gap_crossing + 1))
-            repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1).to(device)
+            repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1, device=device).to(device)
         for i in range(num_batches):
             # Decides on the total spread and hop length.
             spread_size = 1 + gap_crossing
             dispersal_tmp = dispersal() if callable(dispersal) else dispersal
             num_spreads = int(0.5 + dispersal_tmp / spread_size)
             if callable(dispersal):
-                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size).to(device)
+                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size, device=device).to(device)
             # Creates the seeds.
             seed_probability =  seed_density / ((1 + 2 * dispersal_tmp) ** 2)
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability

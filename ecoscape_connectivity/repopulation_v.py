@@ -12,14 +12,14 @@ from .util import dict_translate, SingleIterator
 from osgeo import gdal
 gdal.UseExceptions()
 
-class StochasticRepopulateFast(nn.Module):
+class RandomPropagate(nn.Module):
     """
     Important: THIS is the function to use in the repopulation experiments.
     This module models the repopulation of the habitat from a chosen percentage
     of the seed places.  The terrain and habitat are parameters, and the input is a
     similarly sized 0-1 (float) tensor of seed points."""
 
-    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1):
+    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1, device=None):
         """
         :param habitat: torch tensor (2-dim) representing the habitat.
         :param terrain: torch tensor (2-dim) representing the terrain.
@@ -31,6 +31,7 @@ class StochasticRepopulateFast(nn.Module):
         """
         super().__init__()
         # spread_size and num_spreads have to be integers, not callables here. 
+        self.device = device or torch.device("cpu")
         assert type(spread_size) == int, "spread_size must be an int"
         assert type(num_spreads) == int, "num_spreads must be an int"
         self.habitat = habitat
@@ -39,8 +40,8 @@ class StochasticRepopulateFast(nn.Module):
         self.num_spreads = num_spreads
         self.spread_size = spread_size
         # Defines spread operator.
-        self.mask_threshold = 1 - 0.5 ** (1 / num_spreads) 
-        self.min_transmission = 1 - (2 * self.mask_threshold)
+        self.mask_threshold = 1 - 0.5 ** (1 / (2 * num_spreads)) # last change added 2* 
+        self.min_transmission = 1 - self.mask_threshold
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
         print("New")
@@ -62,10 +63,12 @@ class StochasticRepopulateFast(nn.Module):
             xx = x
             # Masks and randomizes the source.
             x = x * mask 
-            x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
+            x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x)) #  * (torch.rand_like(x) > 0.5)
             # Then, we propagate.
             x = self.spreader(x)
-            x *= self.goodness
+            # Second randomization. 
+            x = x * (torch.rand_like(x) > 0.5) # * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
+            x = x * self.goodness
             # And finally we combine the results.
             mask = x - xx > self.mask_threshold
             x = torch.maximum(x, xx)
@@ -85,7 +88,7 @@ class StochasticRepopulateFast(nn.Module):
 
 def analyze_tile_torch(
         device=None,
-        analysis_class=StochasticRepopulateFast,
+        analysis_class=RandomPropagate,
         seed_density=4.0,
         produce_gradient=False,
         batch_size=1,
@@ -132,14 +135,14 @@ def analyze_tile_torch(
         # If the num_spreads and spread_size are constant, then we can use a fixed repopulator, which is more efficient.
         if not callable(dispersal):
             num_spreads = int(0.5 + dispersal / (gap_crossing + 1))
-            repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1).to(device)
+            repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1, device=device).to(device)
         for i in range(num_batches):
             # Decides on the total spread and hop length.
             spread_size = 1 + gap_crossing
             dispersal_tmp = dispersal() if callable(dispersal) else dispersal
             num_spreads = int(0.5 + dispersal_tmp / spread_size)
             if callable(dispersal):
-                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size).to(device)
+                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size, device=device).to(device)
             # Creates the seeds.
             seed_probability =  seed_density / ((1 + 2 * dispersal_tmp) ** 2)
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability

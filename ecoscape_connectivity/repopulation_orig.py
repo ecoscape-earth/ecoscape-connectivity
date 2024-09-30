@@ -12,14 +12,14 @@ from .util import dict_translate, SingleIterator
 from osgeo import gdal
 gdal.UseExceptions()
 
-class StochasticRepopulateFast(nn.Module):
+class RandomPropagage(nn.Module):
     """
     Important: THIS is the function to use in the repopulation experiments.
     This module models the repopulation of the habitat from a chosen percentage
     of the seed places.  The terrain and habitat are parameters, and the input is a
     similarly sized 0-1 (float) tensor of seed points."""
 
-    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1):
+    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1, min_transmission=0.9):
         """
         :param habitat: torch tensor (2-dim) representing the habitat.
         :param terrain: torch tensor (2-dim) representing the terrain.
@@ -39,12 +39,9 @@ class StochasticRepopulateFast(nn.Module):
         self.num_spreads = num_spreads
         self.spread_size = spread_size
         # Defines spread operator.
-        self.mask_threshold = 1 - 0.5 ** (1 / num_spreads) 
-        self.min_transmission = 1 - (2 * self.mask_threshold)
+        self.min_transmission = min_transmission
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
-        print("New")
-
 
     def forward(self, seed):
         """
@@ -57,20 +54,16 @@ class StochasticRepopulateFast(nn.Module):
             # We put it into shape (1, w, h) because the pooling operator expects this.
             x = torch.unsqueeze(x, dim=0)
         # Now we must propagate n times.
-        mask = x > 0
         for i in range(self.num_spreads):
+            # First, we randomly suppress some bird origin locations.
             xx = x
-            # Masks and randomizes the source.
-            x = x * mask 
+            # Randomizes the source. 
             x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
             # Then, we propagate.
             x = self.spreader(x)
             x *= self.goodness
             # And finally we combine the results.
-            mask = x - xx > self.mask_threshold
-            x = torch.maximum(x, xx)
-            if torch.sum(mask) == 0:
-                break
+            x = torch.max(x, xx)
         x *= self.habitat
         if seed.ndim < 3:
             x = torch.squeeze(x, dim=0)
@@ -232,14 +225,12 @@ def analyze_geotiffs(habitat_fn=None,
         # Reads the files.
         # Iterates through the tiles.
         if single_tile:
-            print("Single tile")
             # We read the geotiffs as a single tile.
             joint_reader = [
                 (habitat_geotiff.get_all_as_tile(b=border_size) if habitat_geotiff is not None else None,
                  permeability_geotiff.get_all_as_tile(b=border_size))
             ]
         else:
-            print("Not single tile")
             # We create readers to iterate over the tiles.
             per_reader = permeability_geotiff.get_reader(b=border_size, w=tile_size, h=tile_size)
             if habitat_geotiff is None:
