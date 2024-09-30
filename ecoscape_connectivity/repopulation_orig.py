@@ -12,7 +12,7 @@ from .util import dict_translate, SingleIterator
 from osgeo import gdal
 gdal.UseExceptions()
 
-class RandomPropagage(nn.Module):
+class RandomPropagate(nn.Module):
     """
     Important: THIS is the function to use in the repopulation experiments.
     This module models the repopulation of the habitat from a chosen percentage
@@ -78,7 +78,7 @@ class RandomPropagage(nn.Module):
 
 def analyze_tile_torch(
         device=None,
-        analysis_class=StochasticRepopulateFast,
+        analysis_class=RandomPropagate,
         seed_density=4.0,
         produce_gradient=False,
         batch_size=1,
