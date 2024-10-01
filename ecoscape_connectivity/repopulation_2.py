@@ -146,14 +146,14 @@ def analyze_tile_torch(
         # If the num_spreads and spread_size are constant, then we can use a fixed repopulator, which is more efficient.
         if not callable(dispersal):
             num_spreads = int(0.5 + dispersal / (gap_crossing + 1))
-            repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1, diagonal_coef=diagonal_coef).to(device)
+            repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1, diagonal_coef=diagonal_coef, device=device).to(device)
         for i in range(num_batches):
             # Decides on the total spread and hop length.
             spread_size = 1 + gap_crossing
             dispersal_tmp = dispersal() if callable(dispersal) else dispersal
             num_spreads = int(0.5 + dispersal_tmp / spread_size)
             if callable(dispersal):
-                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size, diagonal_coef=diagonal_coef).to(device)
+                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size, diagonal_coef=diagonal_coef, device=device).to(device)
             # Creates the seeds.
             seed_probability =  seed_density / ((1 + 2 * dispersal_tmp) ** 2)
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
@@ -385,7 +385,8 @@ def compute_connectivity(
         random_seed=None,
         in_memory=False,
         generate_flow_memory=False,
-        device=None
+        device=None,
+        diagonal_coef=0.9
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
@@ -475,7 +476,8 @@ def compute_connectivity(
         produce_gradient=flow_fn is not None,
         dispersal=dispersal,
         num_simulations=num_simulations,
-        gap_crossing=gap_crossing)
+        gap_crossing=gap_crossing,
+        diagonal_coef=diagonal_coef)
     
     # Applies it.
     return analyze_geotiffs(
