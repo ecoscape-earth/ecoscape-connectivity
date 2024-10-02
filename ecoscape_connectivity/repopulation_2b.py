@@ -50,7 +50,7 @@ class RandomPropagate(nn.Module):
         self.odd_mask = np.invert(self.even_mask)
         self.even_mask = torch.tensor(self.even_mask, device=self.device)
         self.odd_mask = torch.tensor(self.odd_mask, device=self.device)
-        self.distance_coeff = np.log(0.3) / num_spreads
+        self.distance_coeff = np.log(0.6) / num_spreads
         self.lateral_coeff = np.exp(self.distance_coeff)
         self.diagonal_coeff = np.exp(self.distance_coeff * np.sqrt(2))
         self.mask_threshold = np.abs(self.lateral_coeff) / 2
