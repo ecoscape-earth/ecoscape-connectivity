@@ -3,6 +3,8 @@ from .repopulation import (
     StochasticRepopulateFast)
 from .distributions import (constant, half_cauchy)
 from .util import (SingleIterator,)
+from .repopulation_2luca import compute_connectivity as compute_connectivity_diagonal_luca
+from .repopulation_2luca import RandomPropagate as RandomPropagate_diagonal_luca
 from .repopulation_2 import compute_connectivity as compute_connectivity_diagonal
 from .repopulation_2 import DiagonalPropagate as RandomPropagate_diagonal
 from .repopulation_4 import compute_connectivity as compute_connectivity_4

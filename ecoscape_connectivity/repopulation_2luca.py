@@ -12,14 +12,14 @@ from .util import dict_translate, SingleIterator
 from osgeo import gdal
 gdal.UseExceptions()
 
-class DiagonalPropagate(nn.Module):
+class RandomPropagate(nn.Module):
     """
     Important: THIS is the function to use in the repopulation experiments.
     This module models the repopulation of the habitat from a chosen percentage
     of the seed places.  The terrain and habitat are parameters, and the input is a
     similarly sized 0-1 (float) tensor of seed points."""
 
-    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1, diagonal_coef=0.9, device=None):
+    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1, device=None):
         """
         :param habitat: torch tensor (2-dim) representing the habitat.
         :param terrain: torch tensor (2-dim) representing the terrain.
@@ -40,20 +40,21 @@ class DiagonalPropagate(nn.Module):
         self.spread_size = spread_size
         self.device = device or torch.device("cpu")
         # Defines spread operator.
-        self.mask_threshold = 1 - 0.5 ** (1 / num_spreads) 
-        self.min_transmission = 1 - (2 * self.mask_threshold)
-        # self.min_transmission = 1 - 0.1
+        # self.min_transmission = 1 - 1e-4
+        self.min_transmission = 1 - 0.1
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
-        self.diagonal_mask = np.arange(self.h*self.w).reshape((self.h, self.w))
+        indices = np.arange(self.h * self.w).reshape((self.h, self.w))
         if self.w % 2 == 0:
-            self.diagonal_mask[::2,:] += 1
-        self.diagonal_mask = self.diagonal_mask % 2 == 0
-        self.lateral_mask = np.invert(self.diagonal_mask)
-        self.diagonal_mask = torch.tensor(self.diagonal_mask, dtype=torch.float64, device=self.device)
-        self.lateral_mask = torch.tensor(self.lateral_mask, dtype=torch.float64, device=self.device)
-        self.diagonal_coef = diagonal_coef
-
+            indices[::2, :] += 1
+        self.even_mask = indices % 2 == 0
+        self.odd_mask = np.invert(self.even_mask)
+        self.even_mask = torch.tensor(self.even_mask, device=self.device)
+        self.odd_mask = torch.tensor(self.odd_mask, device=self.device)
+        self.distance_coeff = np.log(0.6) / num_spreads
+        self.lateral_coeff = np.exp(self.distance_coeff)
+        self.diagonal_coeff = np.exp(self.distance_coeff * np.sqrt(2))
+        self.mask_threshold = np.abs(self.lateral_coeff) / 2
 
     def forward(self, seed):
         """
@@ -72,15 +73,14 @@ class DiagonalPropagate(nn.Module):
             # Masks and randomizes the source.
             x = x * mask 
             x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
-            x_diagonal = x * (self.diagonal_mask * self.diagonal_coef + self.lateral_mask)
-            x_lateral = x * (self.diagonal_mask + self.lateral_mask * self.diagonal_coef)
-            # Then, we propagate.
-            x_diagonal = self.spreader(x_diagonal)
-            x_lateral = self.spreader(x_lateral)
-            x = torch.maximum(x_diagonal * self.diagonal_mask, x_lateral * self.lateral_mask)
-            x *= self.goodness
+            # We propagate from even and odd locations. 
+            x_even = self.spreader(x * self.even_mask)
+            x_odd = self.spreader(x * self.odd_mask)
+            x_e = torch.maximum(x_even * self.diagonal_coeff, x_odd * self.lateral_coeff)
+            x_o = torch.maximum(x_even * self.lateral_coeff, x_odd * self.diagonal_coeff)
+            x = self.goodness * torch.maximum(self.even_mask * x_e, self.odd_mask * x_o)
             # And finally we combine the results.
-            mask = x - xx > self.mask_threshold
+            mask = x - xx > 0 
             x = torch.maximum(x, xx)
             if torch.sum(mask) == 0:
                 break
@@ -98,14 +98,13 @@ class DiagonalPropagate(nn.Module):
 
 def analyze_tile_torch(
         device=None,
-        analysis_class=DiagonalPropagate,
+        analysis_class=RandomPropagate,
         seed_density=4.0,
         produce_gradient=False,
         batch_size=1,
         dispersal=20,
         num_simulations=100,
-        gap_crossing=0,
-        diagonal_coef=0.9):
+        gap_crossing=0):
     """This is the function that performs the analysis on a single tile.
     The input and output to this function are in cpu, but the computation occurs in
     the specified device.
@@ -146,14 +145,14 @@ def analyze_tile_torch(
         # If the num_spreads and spread_size are constant, then we can use a fixed repopulator, which is more efficient.
         if not callable(dispersal):
             num_spreads = int(0.5 + dispersal / (gap_crossing + 1))
-            repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1, diagonal_coef=diagonal_coef, device=device).to(device)
+            repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=gap_crossing + 1, device=device).to(device)
         for i in range(num_batches):
             # Decides on the total spread and hop length.
             spread_size = 1 + gap_crossing
             dispersal_tmp = dispersal() if callable(dispersal) else dispersal
             num_spreads = int(0.5 + dispersal_tmp / spread_size)
             if callable(dispersal):
-                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size, diagonal_coef=diagonal_coef, device=device).to(device)
+                repopulator = analysis_class(hab, ter, num_spreads=num_spreads, spread_size=spread_size, device=device).to(device)
             # Creates the seeds.
             seed_probability =  seed_density / ((1 + 2 * dispersal_tmp) ** 2)
             seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
@@ -246,14 +245,12 @@ def analyze_geotiffs(habitat_fn=None,
         # Reads the files.
         # Iterates through the tiles.
         if single_tile:
-            print("Single tile")
             # We read the geotiffs as a single tile.
             joint_reader = [
                 (habitat_geotiff.get_all_as_tile(b=border_size) if habitat_geotiff is not None else None,
                  permeability_geotiff.get_all_as_tile(b=border_size))
             ]
         else:
-            print("Not single tile")
             # We create readers to iterate over the tiles.
             per_reader = permeability_geotiff.get_reader(b=border_size, w=tile_size, h=tile_size)
             if habitat_geotiff is None:
@@ -385,8 +382,7 @@ def compute_connectivity(
         random_seed=None,
         in_memory=False,
         generate_flow_memory=False,
-        device=None,
-        diagonal_coef=0.9
+        device=None
     ):
     """
     Function that computes the connectivity. This is the main function in the module.
@@ -476,8 +472,7 @@ def compute_connectivity(
         produce_gradient=flow_fn is not None,
         dispersal=dispersal,
         num_simulations=num_simulations,
-        gap_crossing=gap_crossing,
-        diagonal_coef=diagonal_coef)
+        gap_crossing=gap_crossing)
     
     # Applies it.
     return analyze_geotiffs(
