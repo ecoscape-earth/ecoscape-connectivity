@@ -366,6 +366,7 @@ def compute_connectivity(
         border_size=200,
         include_border=False,
         minimum_habitat=1e-4,
+        batch_size=1,
         float_output=True,
         random_seed=None,
         in_memory=False,
@@ -459,6 +460,7 @@ def compute_connectivity(
         seed_density=seed_density,
         produce_gradient=flow_fn is not None,
         dispersal=dispersal,
+        batch_size=batch_size,
         num_simulations=num_simulations,
         gap_crossing=gap_crossing)
     

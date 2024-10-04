@@ -374,6 +374,7 @@ def compute_connectivity(
         float_output=True,
         random_seed=None,
         in_memory=False,
+        batch_size=1,
         generate_flow_memory=False,
         device=None
     ):
@@ -464,6 +465,7 @@ def compute_connectivity(
         seed_density=seed_density,
         produce_gradient=flow_fn is not None,
         dispersal=dispersal,
+        batch_size=batch_size,
         num_simulations=num_simulations,
         gap_crossing=gap_crossing)
     

@@ -356,6 +356,7 @@ def compute_connectivity(
         single_tile=False,
         tile_size=1000,
         border_size=200,
+        batch_size=1,
         include_border=False,
         minimum_habitat=1e-4,
         float_output=True,
@@ -451,6 +452,7 @@ def compute_connectivity(
         seed_density=seed_density,
         produce_gradient=flow_fn is not None,
         dispersal=dispersal,
+        batch_size=batch_size,
         num_simulations=num_simulations,
         gap_crossing=gap_crossing)
     
