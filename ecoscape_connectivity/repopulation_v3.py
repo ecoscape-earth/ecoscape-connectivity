@@ -43,8 +43,6 @@ class RandomPropagate(nn.Module):
         self.min_transmission =  0.5 ** (1 / num_spreads)
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
-        print("New")
-
 
     def forward(self, seed):
         """
