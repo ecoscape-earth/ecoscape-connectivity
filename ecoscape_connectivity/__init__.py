@@ -7,12 +7,16 @@ from .repopulation_2luca import compute_connectivity as compute_connectivity_dia
 from .repopulation_2luca import RandomPropagate as RandomPropagate_diagonal_luca
 from .repopulation_2 import compute_connectivity as compute_connectivity_diagonal
 from .repopulation_2 import DiagonalPropagate as RandomPropagate_diagonal
+from .repopulation_2_coin import compute_connectivity as compute_connectivity_diagonal_coin
+from .repopulation_2_coin import DiagonalPropagate as RandomPropagate_diagonal_coin
 from .repopulation_4 import compute_connectivity as compute_connectivity_4
 from .repopulation_4 import RandomPropagate as RandomPropagate_4
 from .repopulation_9 import compute_connectivity as compute_connectivity_9
 from .repopulation_9 import RandomPropagate as RandomPropagate_9
 from .repopulation_v import compute_connectivity as compute_connectivity_v
 from .repopulation_v import RandomPropagate as RandomPropagate_v
+from .repopulation_v2_coen import compute_connectivity as compute_connectivity_v2_coen
+from .repopulation_v2_coen import RandomPropagate as RandomPropagate_v2_coen
 from .repopulation_v2 import compute_connectivity as compute_connectivity_v2
 from .repopulation_v2 import RandomPropagate as RandomPropagate_v2
 from .repopulation_v3 import compute_connectivity as compute_connectivity_v3
