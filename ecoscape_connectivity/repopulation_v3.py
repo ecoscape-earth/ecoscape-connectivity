@@ -49,6 +49,8 @@ class RandomPropagate(nn.Module):
     def forward(self, seed):
         """
         seed: a 0-1 (float) tensor of seed points.
+        
+        This is the "double coin toss" method. 
         """
         # First, we multiply the seed by the habitat, to confine the seeds to
         # where birds can live.

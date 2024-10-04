@@ -40,7 +40,8 @@ class RandomPropagate(nn.Module):
         self.spread_size = spread_size
         self.device = device or torch.device("cpu")
         # Defines spread operator.
-        self.min_transmission = 1 - 1e-4
+        self.distance_coeff = np.log(0.5) / num_spreads
+        self.min_transmission = np.exp(self.distance_coeff)
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
         indices = np.arange(self.h * self.w).reshape((self.h, self.w))
@@ -50,7 +51,6 @@ class RandomPropagate(nn.Module):
         self.odd_mask = np.invert(self.even_mask)
         self.even_mask = torch.tensor(self.even_mask, device=self.device)
         self.odd_mask = torch.tensor(self.odd_mask, device=self.device)
-        self.distance_coeff = np.log(0.6) / num_spreads
         self.lateral_coeff = np.exp(self.distance_coeff)
         self.diagonal_coeff = np.exp(self.distance_coeff * np.sqrt(2))
         self.mask_threshold = np.abs(self.lateral_coeff) / 2
@@ -79,7 +79,7 @@ class RandomPropagate(nn.Module):
             x_o = torch.maximum(x_even * self.lateral_coeff, x_odd * self.diagonal_coeff)
             x = self.goodness * torch.maximum(self.even_mask * x_e, self.odd_mask * x_o)
             # And finally we combine the results.
-            mask = x - xx > 0 
+            mask = x - xx > 0
             x = torch.maximum(x, xx)
             if torch.sum(mask) == 0:
                 break
