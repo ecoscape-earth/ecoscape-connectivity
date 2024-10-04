@@ -54,7 +54,8 @@ class RandomPropagate(nn.Module):
         """
         # First, we multiply the seed by the habitat, to confine the seeds to
         # where birds can live.
-        x = seed * self.habitat
+        # The multiplication by self.goodness is required for the gradient. 
+        x = seed * self.habitat * self.goodness
         if x.ndim < 3:
             # We put it into shape (1, w, h) because the pooling operator expects this.
             x = torch.unsqueeze(x, dim=0)
@@ -73,7 +74,7 @@ class RandomPropagate(nn.Module):
             x = x * (torch.rand_like(x) > 0.5)
             x = x * self.goodness
             # And finally we combine the results.
-            mask = torch.maximum(2 * (x > xx), mask)
+            mask = torch.maximum(2 * (x > xx + 0.05), mask)
             x = torch.maximum(x, xx)
             if torch.sum(mask) == 0:
                 break
