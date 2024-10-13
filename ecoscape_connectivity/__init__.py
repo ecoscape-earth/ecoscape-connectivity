@@ -23,3 +23,6 @@ from .repopulation_v5 import compute_connectivity as compute_connectivity_v5
 from .repopulation_v5 import RandomPropagate as RandomPropagate_v5
 from .repopulation_orig import compute_connectivity as compute_connectivity_orig
 from .repopulation_orig import RandomPropagate as RandomPropagate_orig
+from .repopulation_v5 import compute_connectivity as compute_connectivity_coinflip
+from .repopulation_v5 import RandomPropagate as RandomPropagate_coinflip
+
