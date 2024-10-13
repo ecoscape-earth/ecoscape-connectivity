@@ -2,7 +2,7 @@ from .repopulation_v5 import (
     compute_connectivity, analyze_tile_torch, analyze_geotiffs,
     RandomPropagate)
 from .distributions import (constant, half_cauchy)
-from .util import (SingleIterator,)
+from .util import (SingleIterator, read_resistance_csv, read_transmission_csv,)
 from .repopulation_2 import compute_connectivity as compute_connectivity_diagonal
 from .repopulation_2 import DiagonalPropagate as RandomPropagate_diagonal
 from .repopulation_4 import compute_connectivity as compute_connectivity_4

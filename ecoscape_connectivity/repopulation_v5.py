@@ -40,7 +40,7 @@ class RandomPropagate(nn.Module):
         self.num_spreads = num_spreads
         self.spread_size = spread_size
         # Defines spread operator.
-        self.min_transmission =  0.5 ** (1 / num_spreads)
+        self.min_transmission =  1 - 1e-4 # 0.5 ** (1 / num_spreads)
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
 
