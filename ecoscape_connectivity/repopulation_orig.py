@@ -19,7 +19,7 @@ class RandomPropagate(nn.Module):
     of the seed places.  The terrain and habitat are parameters, and the input is a
     similarly sized 0-1 (float) tensor of seed points."""
 
-    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1, min_transmission=0.9, device=None):
+    def __init__(self, habitat, terrain, num_spreads=100, spread_size=1, device=None):
         """
         :param habitat: torch tensor (2-dim) representing the habitat.
         :param terrain: torch tensor (2-dim) representing the terrain.
@@ -39,7 +39,8 @@ class RandomPropagate(nn.Module):
         self.num_spreads = num_spreads
         self.spread_size = spread_size
         # Defines spread operator.
-        self.min_transmission = min_transmission
+        tf = 1 - 0.5 ** (1 / num_spreads)
+        self.min_transmission = 1 - tf / 2
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
 
