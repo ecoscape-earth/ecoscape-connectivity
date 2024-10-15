@@ -1,4 +1,4 @@
-from .repopulation_v5 import (
+from .repopulation_v6 import (
     compute_connectivity, analyze_tile_torch, analyze_geotiffs,
     RandomPropagate)
 from .distributions import (constant, half_cauchy)
@@ -21,6 +21,8 @@ from .repopulation_v4 import compute_connectivity as compute_connectivity_v4
 from .repopulation_v4 import RandomPropagate as RandomPropagate_v4
 from .repopulation_v5 import compute_connectivity as compute_connectivity_v5
 from .repopulation_v5 import RandomPropagate as RandomPropagate_v5
+from .repopulation_v6 import compute_connectivity as compute_connectivity_v6
+from .repopulation_v6 import RandomPropagate as RandomPropagate_v6
 from .repopulation_orig import compute_connectivity as compute_connectivity_orig
 from .repopulation_orig import RandomPropagate as RandomPropagate_orig
 
