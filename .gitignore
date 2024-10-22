@@ -5,4 +5,5 @@ dist/*
 tests/assets/Outputs/*.tif
 tests/assets/Outputs/*.xml
 build/*
+Documentation.md
 
