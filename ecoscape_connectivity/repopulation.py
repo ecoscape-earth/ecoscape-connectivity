@@ -38,7 +38,7 @@ class RandomPropagate(nn.Module):
         self.num_spreads = num_spreads
         self.spread_size = spread_size
         # Defines spread operator.
-        self.min_transmission =  1 - 1e-4 # 0.5 ** (1 / num_spreads)
+        self.min_transmission =  1e-4
         self.kernel_size = 1 + 2 * spread_size
         self.spreader = torch.nn.MaxPool2d(self.kernel_size, stride=1, padding=spread_size)
 
@@ -58,7 +58,7 @@ class RandomPropagate(nn.Module):
         for i in range(self.num_spreads):
             xx = x
             # Randomizes the source.
-            x = x * (self.min_transmission + (1. - self.min_transmission) * torch.rand_like(x))
+            x = x * (1 - self.min_transmission + self.min_transmission * torch.rand_like(x))
             # Then, we propagate.
             x = self.spreader(x)
             # Coin-flip at destination. 
