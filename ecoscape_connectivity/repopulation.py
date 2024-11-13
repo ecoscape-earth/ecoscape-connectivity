@@ -66,7 +66,7 @@ class RandomPropagate(nn.Module):
             x = x * self.goodness
             # And finally we combine the results.
             delta = x - xx
-            x = x * (delta > 0.01)
+            x = x * (delta > 0.05)
             x = torch.maximum(x, xx)
             if torch.sum(delta) == 0:
                 empty_spreads += 1
