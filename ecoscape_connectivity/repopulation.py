@@ -12,6 +12,153 @@ from .util import dict_translate, SingleIterator
 from osgeo import gdal
 gdal.UseExceptions()
 
+
+def compute_connectivity(
+        habitat_fn=None,
+        permeability_fn=None,
+        permeability_scaling=1.0,
+        landcover_fn=None,
+        permeability_dict=None,
+        connectivity_fn=None,
+        flow_fn=None,
+        gap_crossing=0,
+        dispersal=None,
+        num_gaps=None,
+        num_simulations=400,
+        seed_density=4,
+        tile_size=1000,
+        border_size=100,
+        padding_size=0,
+        permeability_padding=0,
+        habitat_padding=0,
+        minimum_habitat=1e-4,
+        float_output=True,
+        random_seed=None,
+        in_memory=False,
+        batch_size=1,
+        generate_flow_memory=False,
+        repopulation_only_in_habitat=True,
+        device=None
+    ):
+    """
+    Function that computes the connectivity. This is the main function in the module.
+    The outputs are encoded as follows:
+
+    If floating point output is selected: 
+    - The connectivity output is in [0, 1].
+    - The flow output is in [0, infty), obtained via 20 * log_10(1 + f).
+
+    If integer output is selected: 
+    - For connectivity, the values from [0, 1] are rescaled to the range 0..255 and encoded
+      as integers.
+    - For flow, the values from [0, infty) are encoded in log-scale via 20 * log_10(1 + f)
+      (so that the flow is expressed in dB, like sound intensity), and clipped to the 0..255 range.
+
+    Integer output saves space, but floating point output is more accurate and intuitive to use.
+    
+    :param habitat_fn: name of habitat geotiff, or GeoTiff (from the scgt packaage) object from habitat geotiff. This file must contain
+        0 = non habitat, and 1 = habitat.
+        If this file is missing, then it is assumed that everywhere is suitable habitat, and that
+        only the permeability determines possible movement. This is useful for modeling mammals. 
+    :param permeability_fn: File name for permeability, or GeoTiff object (from scgt package) for the permeability. 
+        If this is given, the permeability is read from this file, and scaled according to 
+        permeability_scaling.  If this is not given, then the permeability
+        is derived from the landcover_fn file, and the dictionary. 
+    :param permeability_scaling: scaling factor for the permeability.  The permeability values
+        are used per-pixel.  If you have them instead of per-pixel, per n-pixels (e.g., each pixel is 100m 
+        but you computed the permeability for 1km), then you would specify here a scaling factor of 0.1 = 1 km / 100 m.  The permeability values p are rescaled to p ** permeability_scaling. 
+    :param landcover_fn: name of terrain geotiff, or GeoTiff object from terrain geotiff.  This file contains
+        terrain categories that are translated via permeability_dict.
+    :param permeability_dict: Permeability dictionary.  Gives the permeability of each
+        terrain type, translating from the terrain codes, to the permeability in [0, 1].
+        If a terrain type is not found in the dictionary, it is assumed it has permeability 0.
+    :param connectivity_fn: output file name for connectivity.
+    :param flow_fn: output file name for flow.  If None, the flow is not computed, and the
+        computation is faster.
+    :param gap_crossing: size of gap crossing in pixels. 0 means animals move via contiguous pixels.
+    :param dispersal: dispersal distance in pixels.
+    :param num_gaps: number of gaps to cross. Deprecated.  If dispersal is None, then this is used to 
+        compute the dispersal distance.  At least one of dispersal, num_gaps must be provided.
+    :param num_simulations: Number of simulations that are done.
+    :param seed_density: density of seeds.  There are this many seeds for every square with edge of
+        dispersal distance.
+    :param tile_size: size of (square) tile in pixels.  This is the size that is processsed 
+        in one go.  Choose the tile as large as possible, so that it fits into the GPU memory.
+    :param border_size: size of analysis border used on each tile in pixels. This has to be at least 
+        equal to the dispersal distance. 
+    :param padding_size: amount of padding around each tile.  If you specify 0 (no padding), then 
+        the output raster will have the same size as the input, except for a border of size border_size
+        all around it: so if the input is of size w, h and the border is of size b, then the output
+        will be of size w - 2 * b, h - 2 * b.  If you specify a padding of p, then the output will
+        have a border of size b - p, and the output will be of size w - 2 * (b - p), h - 2 * (b - p).
+        The padding cannot be greater than the border size. 
+    :param permeability_padding: value to be used to pad the permeability or terrain raster. 
+    :param habitat_padding: value to be used to pad the habitat raster.
+    :param batch_size: batch size for GPU calculations.  Use the largest batch size that makes the 
+        computation fit into the GPU memory.  
+    :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
+        This saves time in countries where the habitat is only on a small portion.
+    :param random_seed: random seed, if desired. 
+    :param in_memory: whether the connectivity and flow should be saved in memory only.
+        If so, then the files are not saved to disk. Because such files would be deleted on close,
+        the open memory files will be returned as (repop_file, grad_file). Note that the parameters
+        connectivity_fn and flow_fn are ignored if this is set to True, and at least connectivity
+        will be returned. Flow is also generated only if generate_flow_memory is True.
+    :param generate_flow_memory: whether the flow should be generated in memory. Only used if
+        in_memory is True.
+    :param float_output: use floating point output, generating a floating point tiff. 
+    :param repopulation_only_in_habitat: if True, then the repopulation only occurs in the habitat. 
+        That's the default.  If False, the repopulation can be non-zero all over the output raster.
+    :param device: the device to be used for the computation. If None, then the device is chosen
+        automatically.  Valid values include: 'cpu', 'cuda', 'mps'.
+    :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
+        If in_memory is True, the caller should close the files with scgt's GeoTiff.close_memory_file()
+        once they are not needed anymore.
+    """
+    assert habitat_fn is None or type(habitat_fn) == str or type(habitat_fn) == GeoTiff
+    assert landcover_fn is not None or permeability_fn is not None
+    assert landcover_fn is None or permeability_dict is not None
+    assert landcover_fn is None or type(landcover_fn) == str or type(landcover_fn) == GeoTiff
+    assert permeability_fn is None or type(permeability_fn) == str or type(permeability_fn) == GeoTiff
+    
+    if random_seed:
+        torch.manual_seed(random_seed)
+    if dispersal is None:
+        assert num_gaps is not None, "One of dispersal and gap crossing should be specified."
+        dispersal = (1 + gap_crossing) * num_gaps
+    # Builds the analysis function.
+    analysis_function = analyze_tile_torch(
+        device=device,
+        seed_density=seed_density,
+        produce_gradient=flow_fn is not None,
+        dispersal=dispersal,
+        batch_size=batch_size,
+        num_simulations=num_simulations,
+        gap_crossing=gap_crossing,
+        repopulation_only_in_habitat=repopulation_only_in_habitat)
+    
+    # Applies it.
+    return analyze_geotiffs(
+        habitat_fn=habitat_fn, 
+        landcover_fn=landcover_fn,
+        permeability_dictionary=permeability_dict,
+        permeability_fn=permeability_fn, 
+        permeability_scaling=permeability_scaling,
+        analysis_fn=analysis_function,
+        tile_size=tile_size,
+        border_size=border_size,
+        padding_size=padding_size,
+        permeability_padding=permeability_padding,
+        habitat_padding=habitat_padding,
+        generate_gradient=(flow_fn is not None if not in_memory else generate_flow_memory),
+        minimum_habitat=minimum_habitat,
+        output_repop_fn=connectivity_fn,
+        output_grad_fn=flow_fn,
+        float_output=float_output,
+        in_memory=in_memory
+    )
+
+
 class RandomPropagate(nn.Module):
     """
     Important: THIS is the function to use in the repopulation experiments.
@@ -351,149 +498,3 @@ def analyze_geotiffs(habitat_fn=None,
             in_memory=in_memory) if compute_flow else nullcontext() as flow_output:
             do_analysis(connectivity_output, flow_output)
     return connectivity_output, flow_output
-
-
-def compute_connectivity(
-        habitat_fn=None,
-        permeability_fn=None,
-        permeability_scaling=1.0,
-        landcover_fn=None,
-        permeability_dict=None,
-        connectivity_fn=None,
-        flow_fn=None,
-        gap_crossing=0,
-        dispersal=None,
-        num_gaps=None,
-        num_simulations=400,
-        seed_density=4,
-        tile_size=1000,
-        border_size=100,
-        padding_size=0,
-        permeability_padding=0,
-        habitat_padding=0,
-        minimum_habitat=1e-4,
-        float_output=True,
-        random_seed=None,
-        in_memory=False,
-        batch_size=1,
-        generate_flow_memory=False,
-        repopulation_only_in_habitat=True,
-        device=None
-    ):
-    """
-    Function that computes the connectivity. This is the main function in the module.
-    The outputs are encoded as follows:
-
-    If floating point output is selected: 
-    - The connectivity output is in [0, 1].
-    - The flow output is in [0, infty), obtained via 20 * log_10(1 + f).
-
-    If integer output is selected: 
-    - For connectivity, the values from [0, 1] are rescaled to the range 0..255 and encoded
-      as integers.
-    - For flow, the values from [0, infty) are encoded in log-scale via 20 * log_10(1 + f)
-      (so that the flow is expressed in dB, like sound intensity), and clipped to the 0..255 range.
-
-    Integer output saves space, but floating point output is more accurate and intuitive to use.
-    
-    :param habitat_fn: name of habitat geotiff, or GeoTiff (from the scgt packaage) object from habitat geotiff. This file must contain
-        0 = non habitat, and 1 = habitat.
-        If this file is missing, then it is assumed that everywhere is suitable habitat, and that
-        only the permeability determines possible movement. This is useful for modeling mammals. 
-    :param permeability_fn: File name for permeability, or GeoTiff object (from scgt package) for the permeability. 
-        If this is given, the permeability is read from this file, and scaled according to 
-        permeability_scaling.  If this is not given, then the permeability
-        is derived from the landcover_fn file, and the dictionary. 
-    :param permeability_scaling: scaling factor for the permeability.  The permeability values
-        are used per-pixel.  If you have them instead of per-pixel, per n-pixels (e.g., each pixel is 100m 
-        but you computed the permeability for 1km), then you would specify here a scaling factor of 0.1 = 1 km / 100 m.  The permeability values p are rescaled to p ** permeability_scaling. 
-    :param landcover_fn: name of terrain geotiff, or GeoTiff object from terrain geotiff.  This file contains
-        terrain categories that are translated via permeability_dict.
-    :param permeability_dict: Permeability dictionary.  Gives the permeability of each
-        terrain type, translating from the terrain codes, to the permeability in [0, 1].
-        If a terrain type is not found in the dictionary, it is assumed it has permeability 0.
-    :param connectivity_fn: output file name for connectivity.
-    :param flow_fn: output file name for flow.  If None, the flow is not computed, and the
-        computation is faster.
-    :param gap_crossing: size of gap crossing in pixels. 0 means animals move via contiguous pixels.
-    :param dispersal: dispersal distance in pixels.
-    :param num_gaps: number of gaps to cross. Deprecated.  If dispersal is None, then this is used to 
-        compute the dispersal distance.  At least one of dispersal, num_gaps must be provided.
-    :param num_simulations: Number of simulations that are done.
-    :param seed_density: density of seeds.  There are this many seeds for every square with edge of
-        dispersal distance.
-    :param tile_size: size of (square) tile in pixels.  This is the size that is processsed 
-        in one go.  Choose the tile as large as possible, so that it fits into the GPU memory.
-    :param border_size: size of analysis border used on each tile in pixels. This has to be at least 
-        equal to the dispersal distance. 
-    :param padding_size: amount of padding around each tile.  If you specify 0 (no padding), then 
-        the output raster will have the same size as the input, except for a border of size border_size
-        all around it: so if the input is of size w, h and the border is of size b, then the output
-        will be of size w - 2 * b, h - 2 * b.  If you specify a padding of p, then the output will
-        have a border of size b - p, and the output will be of size w - 2 * (b - p), h - 2 * (b - p).
-        The padding cannot be greater than the border size. 
-    :param permeability_padding: value to be used to pad the permeability or terrain raster. 
-    :param habitat_padding: value to be used to pad the habitat raster.
-    :param batch_size: batch size for GPU calculations.  Use the largest batch size that makes the 
-        computation fit into the GPU memory.  
-    :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
-        This saves time in countries where the habitat is only on a small portion.
-    :param random_seed: random seed, if desired. 
-    :param in_memory: whether the connectivity and flow should be saved in memory only.
-        If so, then the files are not saved to disk. Because such files would be deleted on close,
-        the open memory files will be returned as (repop_file, grad_file). Note that the parameters
-        connectivity_fn and flow_fn are ignored if this is set to True, and at least connectivity
-        will be returned. Flow is also generated only if generate_flow_memory is True.
-    :param generate_flow_memory: whether the flow should be generated in memory. Only used if
-        in_memory is True.
-    :param float_output: use floating point output, generating a floating point tiff. 
-    :param repopulation_only_in_habitat: if True, then the repopulation only occurs in the habitat. 
-        That's the default.  If False, the repopulation can be non-zero all over the output raster.
-    :param device: the device to be used for the computation. If None, then the device is chosen
-        automatically.  Valid values include: 'cpu', 'cuda', 'mps'.
-    :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
-        If in_memory is True, the caller should close the files with scgt's GeoTiff.close_memory_file()
-        once they are not needed anymore.
-    """
-    assert habitat_fn is None or type(habitat_fn) == str or type(habitat_fn) == GeoTiff
-    assert landcover_fn is not None or permeability_fn is not None
-    assert landcover_fn is None or permeability_dict is not None
-    assert landcover_fn is None or type(landcover_fn) == str or type(landcover_fn) == GeoTiff
-    assert permeability_fn is None or type(permeability_fn) == str or type(permeability_fn) == GeoTiff
-    
-    if random_seed:
-        torch.manual_seed(random_seed)
-    if dispersal is None:
-        assert num_gaps is not None, "One of dispersal and gap crossing should be specified."
-        dispersal = (1 + gap_crossing) * num_gaps
-    # Builds the analysis function.
-    analysis_function = analyze_tile_torch(
-        device=device,
-        seed_density=seed_density,
-        produce_gradient=flow_fn is not None,
-        dispersal=dispersal,
-        batch_size=batch_size,
-        num_simulations=num_simulations,
-        gap_crossing=gap_crossing,
-        repopulation_only_in_habitat=repopulation_only_in_habitat)
-    
-    # Applies it.
-    return analyze_geotiffs(
-        habitat_fn=habitat_fn, 
-        landcover_fn=landcover_fn,
-        permeability_dictionary=permeability_dict,
-        permeability_fn=permeability_fn, 
-        permeability_scaling=permeability_scaling,
-        analysis_fn=analysis_function,
-        tile_size=tile_size,
-        border_size=border_size,
-        padding_size=padding_size,
-        permeability_padding=permeability_padding,
-        habitat_padding=habitat_padding,
-        generate_gradient=(flow_fn is not None if not in_memory else generate_flow_memory),
-        minimum_habitat=minimum_habitat,
-        output_repop_fn=connectivity_fn,
-        output_grad_fn=flow_fn,
-        float_output=float_output,
-        in_memory=in_memory
-    )
