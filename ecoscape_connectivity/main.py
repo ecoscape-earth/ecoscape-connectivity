@@ -22,9 +22,11 @@ def main(args):
         gap_crossing=args.gap_crossing,
         dispersal=args.dispersal,
         num_gaps=args.num_gap_crossings,
-        single_tile=args.single_tile,
+        seed_density=args.seed_density,
         tile_size=args.tile_size,
         border_size=args.border_size,
+        padding_size=args.padding_size,
+        batch_size=args.batch_size,
     )
 
 def cli():
@@ -51,12 +53,14 @@ def cli():
                         'Use the dissipation parameter instead.')
     parser.add_argument('--seed_density', type=int, default=4,
                         help='Density of random seeds in the simulation.')
-    parser.add_argument('--single_tile', action="store_true", default=False,
-                        help="Processes the geotiffs in a single tile.")
     parser.add_argument('--tile_size', type=int, default=1000,
                         help="Edge of (square) tiles for analysis, in pixels.")
     parser.add_argument('--border_size', type=int, default=256,
                         help="Border needed for analysis, in pixels")
+    parser.add_argument('--padding_size', type=int, default=256,
+                        help="Padding for the analysis, in pixels")
+    parser.add_argument('--batch_size', type=int, default=1,
+                        help="Batch size for GPU computation.")
 
     args = parser.parse_args()
     main(args)
