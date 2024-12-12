@@ -132,7 +132,13 @@ similarly sized 0-1 (float) tensor of seed points.
 #### \_\_init\_\_
 
 ```python
-def __init__(habitat, terrain, num_spreads=100, spread_size=1, device=None)
+def __init__(habitat,
+             terrain,
+             num_spreads=100,
+             spread_size=1,
+             device=None,
+             update_threshold=0.05,
+             coin_toss_probability=0.5)
 ```
 
 **Arguments**:

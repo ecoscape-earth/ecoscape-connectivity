@@ -6,12 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "ecoscape-connectivity"
 version = "0.2.3"
 authors = [
-  {name="Luca de Alfaro", email="luca@ucsc.edu"},
-  {name="Coen Adler", email="ctadler@ucsc.edu"},
-  {name="Artie Nazarov", email="anazarov@ucsc.edu"},
-  {name="Natalia Ocampo-Peñuela", email="nocampop@ucsc.edu"},
-  {name="Jasmine Tai", email="cjtai@ucsc.edu"},
-  {name="Natalie Valett", email="nvalett@ucsc.edu"}
 ]
 description = "EcoScape habitat connectivity computation."
 readme = "README.md"

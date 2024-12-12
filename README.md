@@ -3,19 +3,6 @@
 This package implements the computation of connectivity and flow according 
 to the EcoScape algorithm. 
 
-## Authors
-
-* Luca de Alfaro (luca@ucsc.edu)
-* Natalia Ocampo-Peñuela (nocampop@ucsc.edu)
-* Coen Adler (ctadler@ucsc.edu)
-* Artie Nazarov (anazarov@ucsc.edu)
-* Natalie Valett (nvalett@ucsc.edu)
-* Jasmine Tai (cjtai@ucsc.edu)
-
-
-The computation will be much faster if you run it with GPU support.
-We recommend at least a T2-equivalent GPU or better. 
-
 The main method is `compute_connectivity`, which computes the connectivity
 and flow for a given raster.
 
@@ -157,7 +144,13 @@ similarly sized 0-1 (float) tensor of seed points.
 #### \_\_init\_\_
 
 ```python
-def __init__(habitat, terrain, num_spreads=100, spread_size=1, device=None)
+def __init__(habitat,
+             terrain,
+             num_spreads=100,
+             spread_size=1,
+             device=None,
+             update_threshold=0.05,
+             coin_toss_probability=0.5)
 ```
 
 **Arguments**:
