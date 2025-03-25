@@ -395,6 +395,10 @@ def analyze_geotiffs(habitat_fn=None,
                              for k, v in permeability_dictionary.items()}
         permeability_geotiff = GeoTiff.from_file(landcover_fn) if type(landcover_fn) == str else landcover_fn
         
+    # Checks that the habitat and permeability have the same size.
+    if habitat_geotiff is not None:
+        assert habitat_geotiff.width == permeability_geotiff.width and habitat_geotiff.height == permeability_geotiff.height, "Habitat and permeability must have the same size."
+        
     def do_analysis(conn_file, flow_file):
         do_output = (conn_file is not None)
         # Reads the files.
@@ -412,8 +416,8 @@ def analyze_geotiffs(habitat_fn=None,
             # print("Habitat tile shape", hab_tile_iter.m.shape)
             # print("Permeability tile:", "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
             # print("Permeability tile shape", per_tile_iter.m.shape)
-            raw_habitat = hab_tile_iter.m if hab_tile_iter is not None else None # Habitat tile
-            raw_permeability = per_tile_iter.m # Permeability tile            
+            raw_habitat = np.nan_to_num(hab_tile_iter.m) if hab_tile_iter is not None else None # Habitat tile
+            raw_permeability = np.nan_to_num(per_tile_iter.m) # Permeability tile  
             if display_tiles is True or i in display_tiles:
                 habitat.draw_tile(title="Raw habitat tile")
                 habitat.draw_tile(title="Raw terrain tile")
