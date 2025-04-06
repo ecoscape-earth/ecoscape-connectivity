@@ -335,7 +335,7 @@ def analyze_geotiffs(habitat_fn=None,
                      permeability_padding=0,
                      habitat_padding=0,
                      generate_gradient=True,
-                     display_tiles=False,
+                     display_tiles=True,
                      minimum_habitat=1e-4,
                      output_repop_fn=None,
                      output_grad_fn=None,
@@ -416,31 +416,28 @@ def analyze_geotiffs(habitat_fn=None,
             # print("Habitat tile shape", hab_tile_iter.m.shape)
             # print("Permeability tile:", "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
             # print("Permeability tile shape", per_tile_iter.m.shape)
-            raw_habitat = np.nan_to_num(hab_tile_iter.m) if hab_tile_iter is not None else None # Habitat tile
-            raw_permeability = np.nan_to_num(per_tile_iter.m) # Permeability tile  
+            habitat = np.clip(np.nan_to_num(hab_tile_iter.m), 0, 1) if hab_tile_iter is not None else None # Habitat tile
+            raw_permeability = np.nan_to_num(per_tile_iter.m)  # Raw Permeability tile  
             if display_tiles is True or i in display_tiles:
-                habitat.draw_tile(title="Raw habitat tile")
-                habitat.draw_tile(title="Raw terrain tile")
+                if habitat is not None:
+                    hab_tile_iter.draw_tile(title="Habitat tile")
+                per_tile_iter.draw_tile(title="Terrain tile")
             # We skip a tile if: 
             # - the habitat is not None, and too low, or, 
             # - the habitat is None, and the permeability is too low. 
             skip_tile = False
-            if raw_habitat is not None: 
-                habitat = np.maximum(raw_habitat, 0)
+            if habitat is not None: 
                 skip_tile = np.mean(habitat) < minimum_habitat
             if not skip_tile:            
                 # Scales the permeability.
                 if permeability_via_dictionary:
                     permeability = dict_translate(raw_permeability, scaled_dictionary, default_val=0)
                 else:
-                    # Some software uses -infty for 0. 
-                    raw_permeability = np.maximum(raw_permeability, 0)
+                    raw_permeability = np.clip(raw_permeability, 0, 1)
                     # Scales the permeability.
                     permeability = raw_permeability ** permeability_scaling
-                    # Clip it between 0 and 1.
-                    permeability = np.clip(permeability, 0, 1)
                 # Checks whether we have to skip due to low permeability. 
-                if raw_habitat is None:
+                if habitat is None:
                     skip_tile = np.mean(permeability) < minimum_habitat         
             if skip_tile:
                 if do_output:
@@ -453,7 +450,7 @@ def analyze_geotiffs(habitat_fn=None,
                         flow_file.set_tile(flow, offset=border_size - padding_size)
                 continue
             # We process the tile.
-            connectivity, flow = analysis_fn(np.ones_like(permeability) if raw_habitat is None else habitat, permeability)
+            connectivity, flow = analysis_fn(np.ones_like(permeability) if habitat is None else habitat, permeability)
             # Normalizes the tiles, to fit into the geotiff format.
             # The population is simply normalized with a max of 255. After all it is in [0, 1].
             # We need to use type float because clam is not implemented for all types.
@@ -472,10 +469,6 @@ def analyze_geotiffs(habitat_fn=None,
                     connectivity_raster = torch.clamp(connectivity.type(torch.float) * 255, 0, 255).type(torch.uint8)
                     flow_raster = torch.clamp(torch.log10(1. + flow.type(torch.float)) * 20., 0, 255).type(torch.uint8)
 
-            # Displays the output if so asked.
-            if display_tiles is True or i in display_tiles:
-                connectivity_raster.draw_tile(title="Connectivity")
-                flow_raster.draw_tile(title="Gradient")
 
             # Prepares the tiles for writing.
             if do_output:
@@ -487,6 +480,11 @@ def analyze_geotiffs(habitat_fn=None,
                     flow_tile = per_tile_iter.clone_shape()
                     flow_tile.m = flow_raster
                     flow_file.set_tile(flow_tile, offset=border_size - padding_size)
+            # Displays the output if so asked.
+            if display_tiles is True or i in display_tiles:
+                conn_tile.draw_tile(title="Connectivity")
+                if compute_flow:
+                    flow_tile.draw_tile(title="Flow")
             if report_progress:
                 print(i, end=' ', flush=True)
         if report_progress:
