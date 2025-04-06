@@ -181,7 +181,7 @@ class RandomPropagate(nn.Module):
         assert type(spread_size) == int, "spread_size must be an int"
         assert type(num_spreads) == int, "num_spreads must be an int"
         self.habitat = habitat
-        self.goodness = torch.nn.Parameter(torch.max(habitat, terrain), requires_grad=True)
+        self.goodness = torch.nn.Parameter(terrain, requires_grad=True)
         self.h, self.w = habitat.shape
         self.num_spreads = num_spreads
         self.spread_size = spread_size
@@ -278,6 +278,7 @@ def analyze_tile_torch(
 
     def f(habitat, terrain):
         _, w, h = habitat.shape
+        assert habitat.shape == terrain.shape, "Habitat and terrain must have the same shape."
         # We may need to do multiple spreads if the batch size is smaller than the total spreads.
         assert num_simulations % batch_size == 0, "Simulations not multiples of batch"
         num_batches = num_simulations // batch_size
@@ -335,7 +336,7 @@ def analyze_geotiffs(habitat_fn=None,
                      permeability_padding=0,
                      habitat_padding=0,
                      generate_gradient=True,
-                     display_tiles=True,
+                     display_tiles=False,
                      minimum_habitat=1e-4,
                      output_repop_fn=None,
                      output_grad_fn=None,
