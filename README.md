@@ -101,8 +101,8 @@ computation is faster.
 - `num_gaps`: number of gaps to cross. Deprecated.  If dispersal is None, then this is used to 
 compute the dispersal distance.  At least one of dispersal, num_gaps must be provided.
 - `num_simulations`: Number of simulations that are done.
-- `seed_density`: density of seeds.  There are this many seeds for every square with edge of
-dispersal distance.
+- `seed_density`: density of seeds.  There are this many seeds for every square with edge of (1 + 2 * dispersal) pixels.
+The default of 4 means 1 seed every dispersal^2 pixels, approximately, and works well.
 - `tile_size`: size of (square) tile in pixels.  This is the size that is processsed 
 in one go.  Choose the tile as large as possible, so that it fits into the GPU memory.
 - `border_size`: size of analysis border used on each tile in pixels. This has to be at least 

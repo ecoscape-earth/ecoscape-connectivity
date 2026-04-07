@@ -171,8 +171,11 @@ class RandomPropagate(nn.Module):
         """
         :param habitat: torch tensor (2-dim) representing the habitat.
         :param terrain: torch tensor (2-dim) representing the terrain.
-        :param num_spreads: number of bird spreads to use
+        :param num_spreads: number of bird spreads to use.  This is 
+            the number of kernel spreads, in which birds that move by 
+            spread_size pixels. 
         :param spread_size: by how much (in pixels) birds spread in each spread. 
+            This is 1 + gap_crossing.
         :param device: device to use for computation (cpu, cuda, mps, etc). 
         """
         super().__init__()
@@ -251,7 +254,7 @@ def analyze_tile_torch(
     :param device: the device to be used, e.g., cpu, cuda, mps.
     :param analysis_class: class to be used for the analysis.  We recommend RandomPropagate.
         You can change this if you wish to experiment with different classes.
-    :param seed_density: Consider a square of edge 2 * hop_length * total_spreads.
+    :param seed_density: Consider a square of edge (1 + 2 * dispersal) pixels.
         In that square, there will be seed_density seeds on average.
     :param produce_gradient: boolean, whether to produce a gradient as result or not.
     :param batch_size: batch size for GPU calculations. For speed, use the largest 
