@@ -11,8 +11,11 @@ To upload:
 
 To build the documentation:
 
-    pydoc-markdown -I ecoscape_connectivity -m repopulation -m distributions -m util > Documentation.md
-    cat README-prototype.md Documentation.md > README.md
+    make docs
+
+This regenerates `Documentation.md` from the docstrings and `README.md`
+from `README-prototype.md` and `Documentation.md`. Don't edit `README.md`
+directly.
 
 To install locally: 
 

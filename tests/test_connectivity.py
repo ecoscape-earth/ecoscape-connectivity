@@ -1,80 +1,52 @@
-import os
-import csv
-import sys
-import scgt
+"""Tests for compute_connectivity with habitat and landcover inputs."""
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from pathlib import Path
+
+import pytest
+from scgt import GeoTiff
+
 import ecoscape_connectivity
 
-DATA_PATH="tests/assets"
-
-HABITAT_PATH = os.path.join(DATA_PATH, "habitat_small.tif")
-LANDCOVER_PATH = os.path.join(DATA_PATH, "terrain_small.tif")
-PERMEABILITY_PATH = os.path.join(DATA_PATH, "terrain_permeability.csv")
-
+ASSETS_PATH = Path(__file__).parent / "assets"
+HABITAT_PATH = ASSETS_PATH / "habitat_small.tif"
 BORDER_SIZE = 50
-TILE_SIZE = 200
 
-with open(PERMEABILITY_PATH, mode='r') as infile:
-    reader = csv.reader(infile)
-    permeability_dict = {rows[0]:rows[1] for rows in reader}
 
-CONNECTIVITY_PATH = os.path.join(DATA_PATH, "Outputs/connectivity.tif")
-FLOW_PATH = os.path.join(DATA_PATH, "Outputs/flow.tif")
-
-def test_connectivity():
+@pytest.mark.parametrize(
+    "tile_size, padding_size",
+    [
+        (200, 0),
+        # Larger than the 814 x 689 test raster, so it is a single tile.
+        (1000, 0),
+        # Padding equal to the border keeps the border in the output.
+        (1000, BORDER_SIZE),
+    ],
+    ids=["tiled", "single_tile", "with_border"],
+)
+def test_connectivity(
+    tmp_path: Path, tile_size: int, padding_size: int
+) -> None:
+    """Check that the outputs are the input size minus the cropped border."""
+    connectivity_path = tmp_path / "connectivity.tif"
+    flow_path = tmp_path / "flow.tif"
+    permeability_dict = ecoscape_connectivity.read_transmission_csv(
+        str(ASSETS_PATH / "terrain_permeability.csv")
+    )
     ecoscape_connectivity.compute_connectivity(
-        habitat_fn=HABITAT_PATH,
-        landcover_fn=LANDCOVER_PATH,
+        habitat_fn=str(HABITAT_PATH),
+        landcover_fn=str(ASSETS_PATH / "terrain_small.tif"),
         permeability_dict=permeability_dict,
-        connectivity_fn=CONNECTIVITY_PATH,
-        flow_fn=FLOW_PATH,
-        single_tile=False,
+        connectivity_fn=str(connectivity_path),
+        flow_fn=str(flow_path),
+        tile_size=tile_size,
         border_size=BORDER_SIZE,
-        tile_size=TILE_SIZE,
+        padding_size=padding_size,
         num_simulations=2,
         dispersal=ecoscape_connectivity.half_cauchy(15, 40),
     )
-    in_gt = scgt.GeoTiff.from_file(HABITAT_PATH)
-    out_gt = scgt.GeoTiff.from_file(CONNECTIVITY_PATH)
-    assert in_gt.width == out_gt.width + 2 * BORDER_SIZE
-    assert in_gt.height == out_gt.height + 2 * BORDER_SIZE
-
-test_connectivity()
-
-def test_connectivity_single():
-    ecoscape_connectivity.compute_connectivity(
-        habitat_fn=HABITAT_PATH,
-        landcover_fn=LANDCOVER_PATH,
-        permeability_dict=permeability_dict,
-        connectivity_fn=CONNECTIVITY_PATH,
-        flow_fn=FLOW_PATH,
-        single_tile=True,
-        border_size=BORDER_SIZE,
-        num_simulations=2,
-        dispersal=ecoscape_connectivity.half_cauchy(15, 40),
-    )
-    in_gt = scgt.GeoTiff.from_file(HABITAT_PATH)
-    out_gt = scgt.GeoTiff.from_file(CONNECTIVITY_PATH)
-    assert in_gt.width == out_gt.width + 2 * BORDER_SIZE
-    assert in_gt.height == out_gt.height + 2 * BORDER_SIZE
-
-test_connectivity_single()
-
-def test_connectivity_with_border():
-    ecoscape_connectivity.compute_connectivity(
-        habitat_fn=HABITAT_PATH,
-        landcover_fn=LANDCOVER_PATH,
-        permeability_dict=permeability_dict,
-        connectivity_fn=CONNECTIVITY_PATH,
-        flow_fn=FLOW_PATH,
-        single_tile=True,
-        border_size=BORDER_SIZE,
-        include_border=True,
-        num_simulations=2,
-        dispersal=ecoscape_connectivity.half_cauchy(15, 40),
-    )
-    
-    in_gt = scgt.GeoTiff.from_file(HABITAT_PATH)
-    out_gt = scgt.GeoTiff.from_file(CONNECTIVITY_PATH)
-    assert in_gt.size == out_gt.size
+    cropped = 2 * (BORDER_SIZE - padding_size)
+    with GeoTiff.from_file(str(HABITAT_PATH)) as habitat:
+        expected_size = (habitat.width - cropped, habitat.height - cropped)
+    for output_path in (connectivity_path, flow_path):
+        with GeoTiff.from_file(str(output_path)) as output:
+            assert output.size == expected_size
