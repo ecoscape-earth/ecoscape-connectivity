@@ -8,3 +8,5 @@ build/*
 *.aux.xml
 tests/*.pdf
 
+.DS_Store
+.ipynb_checkpoints/
