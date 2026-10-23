@@ -7,7 +7,7 @@ from scgt import GeoTiff
 
 import ecoscape_connectivity
 
-ASSETS_PATH = Path(__file__).parent / "assets"
+ASSETS_PATH = Path(__file__).parent.parent / "assets"
 HABITAT_PATH = ASSETS_PATH / "habitat_small.tif"
 BORDER_SIZE = 50
 
