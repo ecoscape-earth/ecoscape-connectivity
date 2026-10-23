@@ -1,4 +1,4 @@
-Do not run Python code on the command line (ie `python3 -c "...""``).  When writing code, append it as a function to claude.py. Include a comment about the purpose of the code.
+Do not run Python code on the command line (ie `python3 -c "...""`` or `uv run python -c "..."`).  When writing code, append it as a function to claude.py. Include a comment about the purpose of the code.
 
 When writing Python code
 
@@ -18,8 +18,9 @@ When writing Python code
 
 Dependencies
 
-  - check for dependencies in requirements.txt, pyproject.toml, or package.json; do NOT run pip or attempt to import to verify package install.
-  - Suggest new dependencies when they make code simpler or easier to read. Claude can recommend new dependencies, but only the user can install them. claude is NEVER allowed to install packages directly.
+  - The project uses uv. Check for dependencies in pyproject.toml (`dependencies` for the package, the `dev` group under `[dependency-groups]` for development tools) and uv.lock (exact installed versions); do NOT run pip or attempt to import to verify package install.
+  - Suggest new dependencies when they make code simpler or easier to read. Claude can recommend new dependencies, with the `uv add <name>` or `uv add --dev <name>` command for the user to run, but only the user can install them. claude is NEVER allowed to install packages directly: do not run `uv add`, `uv remove`, `uv sync`, `uv pip`, `make install` or `uv lock --upgrade`. Read-only checks such as `uv lock --check` are ok.
+  - `uv run` (and so `make test` and `make docs`) creates or updates `.venv` when it is missing or out of date with uv.lock, which installs packages. If `.venv` is missing or pyproject.toml or uv.lock has changed, ask the user to run `make install` first.
 
 Prefer makefile targets whenever possible. For example, run `make lint` instead of `black main.py`
 

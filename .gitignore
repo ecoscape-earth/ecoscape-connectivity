@@ -11,3 +11,4 @@ tests/*.pdf
 .DS_Store
 .ipynb_checkpoints/
 .vscode
+.venv/

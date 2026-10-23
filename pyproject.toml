@@ -15,16 +15,34 @@ authors = [
 ]
 description = "EcoScape habitat connectivity computation."
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: BSD License",
     "Operating System :: OS Independent",
 ]
-dynamic = ["dependencies"]
+dependencies = [
+    "numpy>=2.5.3",
+    "scgt>=0.0.32",
+    "torch>=2.14.1",
+]
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+[dependency-groups]
+dev = [
+    "matplotlib==3.11.2",
+    "notebook==7.6.3",
+    "pydoc-markdown==4.8.2",
+    "pytest==9.1.1",
+]
+
+[tool.uv]
+# The GDAL Python package (required by scgt) is built from source against
+# the system GDAL library, so its version must match the installed library
+# (gdal-config --version). Remove once scgt no longer needs GDAL (#33).
+constraint-dependencies = ["gdal==3.13.3"]
 
 [tool.setuptools]
 packages = ["ecoscape_connectivity"]
