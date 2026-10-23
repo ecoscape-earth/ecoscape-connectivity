@@ -2,9 +2,12 @@
 dist/*
 *.egg-info
 */__pycache__/*
-tests/assets/Outputs/*.tif
-tests/assets/Outputs/*.xml
+assets/Outputs/*.tif
+assets/Outputs/*.xml
 build/*
 *.aux.xml
 tests/*.pdf
 
+.DS_Store
+.ipynb_checkpoints/
+.vscode

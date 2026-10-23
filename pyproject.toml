@@ -29,6 +29,9 @@ dependencies = {file = ["requirements.txt"]}
 [tool.setuptools]
 packages = ["ecoscape_connectivity"]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [project.scripts]
 ecoscape-connectivity = "ecoscape_connectivity.main:cli"
 

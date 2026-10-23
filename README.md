@@ -1,3 +1,5 @@
+<!-- README.md is generated from README-prototype.md and the docstrings.
+Edit README-prototype.md or the docstrings, then run `make docs`. -->
 # EcoScape Connectivity Computation
 
 This package implements the computation of connectivity and flow according 
@@ -18,6 +20,17 @@ We recommend at least a T2-equivalent GPU or better.
 
 The main method is `compute_connectivity`, which computes the connectivity
 and flow for a given raster.
+
+## Running the tests
+
+Install the dependencies and development dependencies, then run the
+tests:
+
+    python3 -m pip install -r requirements.txt -r dev-dependencies.txt
+    make test
+
+The tests also need GDAL, which is not yet listed in `requirements.txt`
+(see issue #17).
 
 
 
@@ -101,7 +114,8 @@ computation is faster.
 - `num_gaps`: number of gaps to cross. Deprecated.  If dispersal is None, then this is used to 
 compute the dispersal distance.  At least one of dispersal, num_gaps must be provided.
 - `num_simulations`: Number of simulations that are done.
-- `seed_density`: density of seeds.  There are this many seeds for every square with edge of (1 + 2 * dispersal) pixels.
+- `seed_density`: density of seeds.  There are this many seeds for every square with edge of
+(1 + 2 * dispersal) pixels.
 The default of 4 means 1 seed every dispersal^2 pixels, approximately, and works well.
 - `tile_size`: size of (square) tile in pixels.  This is the size that is processsed 
 in one go.  Choose the tile as large as possible, so that it fits into the GPU memory.
@@ -157,15 +171,24 @@ similarly sized 0-1 (float) tensor of seed points.
 #### \_\_init\_\_
 
 ```python
-def __init__(habitat, terrain, num_spreads=100, spread_size=1, device=None)
+def __init__(habitat,
+             terrain,
+             num_spreads=100,
+             spread_size=1,
+             device=None,
+             update_threshold=0.05,
+             coin_toss_probability=0.5)
 ```
 
 **Arguments**:
 
 - `habitat`: torch tensor (2-dim) representing the habitat.
 - `terrain`: torch tensor (2-dim) representing the terrain.
-- `num_spreads`: number of bird spreads to use
-- `spread_size`: by how much (in pixels) birds spread in each spread.
+- `num_spreads`: number of bird spreads to use.  This is 
+the number of kernel spreads, in which birds that move by 
+spread_size pixels.
+- `spread_size`: by how much (in pixels) birds spread in each spread. 
+This is 1 + gap_crossing.
 - `device`: device to use for computation (cpu, cuda, mps, etc).
 
 <a id="repopulation.RandomPropagate.forward"></a>
@@ -204,7 +227,7 @@ the specified device.
 - `device`: the device to be used, e.g., cpu, cuda, mps.
 - `analysis_class`: class to be used for the analysis.  We recommend RandomPropagate.
 You can change this if you wish to experiment with different classes.
-- `seed_density`: Consider a square of edge 2 * hop_length * total_spreads.
+- `seed_density`: Consider a square of edge (1 + 2 * dispersal) pixels.
 In that square, there will be seed_density seeds on average.
 - `produce_gradient`: boolean, whether to produce a gradient as result or not.
 - `batch_size`: batch size for GPU calculations. For speed, use the largest 
