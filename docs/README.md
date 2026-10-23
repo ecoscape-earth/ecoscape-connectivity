@@ -15,22 +15,22 @@ experiments, not tests: `make test` does not run them.
 
 The notebooks need the EcoScape dependencies, Jupyter and matplotlib.
 
-1. Install the dependencies (Jupyter and matplotlib are in the
-   development dependencies):
+1. Install the dependencies from the top of the repository (Jupyter and
+   matplotlib are in the development dependencies). See the main README
+   for what to install first.
 
-       python3 -m pip install -r requirements.txt -r dev-dependencies.txt
+       make install
 
 2. Start Jupyter from this `docs` folder, so the notebooks find the
    `ecoscape_connectivity` package in the folder above:
 
        cd docs
-       jupyter notebook
+       uv run jupyter notebook
 
 3. Open a notebook and choose **Run > Run All Cells**.
 
 To run them in VS Code instead, open the `.ipynb` file, click
-**Select Kernel** in the top right, and choose the Python environment you
-installed the dependencies into.
+**Select Kernel** in the top right, and choose `.venv/bin/python`.
 
 The notebooks pick a GPU automatically (CUDA, or MPS on Apple
 computers) and fall back to the CPU. The two slow notebooks can also be
