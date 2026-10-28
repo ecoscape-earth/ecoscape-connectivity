@@ -1,4 +1,5 @@
 import math
+
 import numpy as np
 
 """In this module, we define probability distributions used to sample the spread."""

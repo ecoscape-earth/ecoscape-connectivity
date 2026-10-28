@@ -1,7 +1,9 @@
 import argparse
 import os
+
 from .repopulation import compute_connectivity
-from .util import read_transmission_csv, createdir_for_file
+from .util import createdir_for_file, read_transmission_csv
+
 
 def main(args):
     # Reads and transltes the resistance dictionary.

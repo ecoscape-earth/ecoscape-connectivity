@@ -1,6 +1,7 @@
-import numpy as np
 import csv
 import os
+
+import numpy as np
 
 # We collect here a few generally useful functions.
 
@@ -45,7 +46,7 @@ def createdir_for_file(fn):
     # print("Creating", dirs)
     os.makedirs(dirs, exist_ok=True)
 
-class SingleIterator(object):
+class SingleIterator:
     """Given an iterator, this class builds an iterator that returns 
     pairs of the form (None, i), where i is given by the iterator."""
     

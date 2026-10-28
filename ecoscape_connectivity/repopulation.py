@@ -1,15 +1,16 @@
 # Standard imports
-import argparse
-import numpy as np
-import torch
-from torch import nn
 from contextlib import nullcontext
 
-# Our imports
-from scgt import GeoTiff, Tile
-from .util import dict_translate, SingleIterator
-
+import numpy as np
+import torch
 from osgeo import gdal
+
+# Our imports
+from scgt import GeoTiff
+from torch import nn
+
+from .util import SingleIterator, dict_translate
+
 gdal.UseExceptions()
 
 
