@@ -4,11 +4,14 @@ import numpy as np
 
 """In this module, we define probability distributions used to sample the spread."""
 
+
 def constant(value):
     """Returns a function that always returns the same value.
     This is useful to allow a deterministic number of spreads."""
+
     def f():
         return value
+
     return f
 
 
@@ -38,7 +41,7 @@ def half_cauchy(median, truncation):
     def cdf(sigma, y):
         return 2 / math.pi * math.atan(y / sigma)
 
-    r'''
+    r"""
     Solving for sigma using cdf formula knowing the median probability
     CDF of Half-Cauchy Distribution - {\mu is distribution shift}
     F(\mu, \sigma : y) = 2 / \pi * arctan( (y - \mu) / \sigma )  
@@ -64,13 +67,13 @@ def half_cauchy(median, truncation):
 
     Simplify
     \sigma = +/- ( (m - \mu) * sqrt(c - \mu) ) / sqrt( c + \mu - 2m)
-    '''
+    """
 
     # Due to the way we round; see above.
     c = truncation + 0.5
-    assert c > 2 * median # Otherwise, we cannot find the parameters.
+    assert c > 2 * median  # Otherwise, we cannot find the parameters.
 
-    sigma = (median * c ** 0.5) / (c - 2 * median) ** 0.5
+    sigma = (median * c**0.5) / (c - 2 * median) ** 0.5
     # We now pre-compute the probabilities of each integer in the
     # range [0, truncation], extremes included.
     cdf_dif = []

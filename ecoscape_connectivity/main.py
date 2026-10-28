@@ -31,43 +31,90 @@ def main(args):
         batch_size=args.batch_size,
     )
 
+
 def cli():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--habitat', type=os.path.abspath, default=None,
-                        help='Path of input habitat geotiff.')
-    parser.add_argument('--landcover', type=os.path.abspath, default=None,
-                        help='Path of input landcover geotiff.')
-    parser.add_argument('--permeability', type=os.path.abspath, default=None,
-                        help='Path of input CSV dictionary of the terrain permeability.'
-                        'This should be a CSV with at least two columns, map_code, and transmission, the latter between 0 and 1.')
-    parser.add_argument('--connectivity', type=os.path.abspath, default=None,
-                        help='Path to output geotiff file for connectivity.')
-    parser.add_argument('--flow', type=os.path.abspath, default=None,
-                        help='Path to output geotiff file for flow. If missing, no flow is computed.')
-    parser.add_argument('--num_simulations', type=int, default=400,
-                        help='Number of simulations to perform.')
-    parser.add_argument('--gap_crossing', type=int, default=0,
-                        help='Gap-crossing distance in pixels.')
-    parser.add_argument('--dispersal', type=float, default=40,
-                        help='Dispersal distance in pixels.')
-    parser.add_argument('--num_gap_crossings', type=int, default=None,
-                        help='Number of gap crossings in a dispersal. Deprecated. ' +
-                        'Use the dissipation parameter instead.')
-    parser.add_argument('--seed_density', type=int, default=4,
-                        help='Density of random seeds in the simulation.')
-    parser.add_argument('--tile_size', type=int, default=1000,
-                        help="Edge of (square) tiles for analysis, in pixels.")
-    parser.add_argument('--border_size', type=int, default=256,
-                        help="Border needed for analysis, in pixels")
-    parser.add_argument('--padding_size', type=int, default=256,
-                        help="Padding for the analysis, in pixels")
-    parser.add_argument('--batch_size', type=int, default=1,
-                        help="Batch size for GPU computation.")
+    parser.add_argument(
+        "--habitat",
+        type=os.path.abspath,
+        default=None,
+        help="Path of input habitat geotiff.",
+    )
+    parser.add_argument(
+        "--landcover",
+        type=os.path.abspath,
+        default=None,
+        help="Path of input landcover geotiff.",
+    )
+    parser.add_argument(
+        "--permeability",
+        type=os.path.abspath,
+        default=None,
+        help="Path of input CSV dictionary of the terrain permeability."
+        "This should be a CSV with at least two columns, map_code, and transmission, the latter between 0 and 1.",
+    )
+    parser.add_argument(
+        "--connectivity",
+        type=os.path.abspath,
+        default=None,
+        help="Path to output geotiff file for connectivity.",
+    )
+    parser.add_argument(
+        "--flow",
+        type=os.path.abspath,
+        default=None,
+        help="Path to output geotiff file for flow. If missing, no flow is computed.",
+    )
+    parser.add_argument(
+        "--num_simulations",
+        type=int,
+        default=400,
+        help="Number of simulations to perform.",
+    )
+    parser.add_argument(
+        "--gap_crossing", type=int, default=0, help="Gap-crossing distance in pixels."
+    )
+    parser.add_argument(
+        "--dispersal", type=float, default=40, help="Dispersal distance in pixels."
+    )
+    parser.add_argument(
+        "--num_gap_crossings",
+        type=int,
+        default=None,
+        help="Number of gap crossings in a dispersal. Deprecated. "
+        + "Use the dissipation parameter instead.",
+    )
+    parser.add_argument(
+        "--seed_density",
+        type=int,
+        default=4,
+        help="Density of random seeds in the simulation.",
+    )
+    parser.add_argument(
+        "--tile_size",
+        type=int,
+        default=1000,
+        help="Edge of (square) tiles for analysis, in pixels.",
+    )
+    parser.add_argument(
+        "--border_size",
+        type=int,
+        default=256,
+        help="Border needed for analysis, in pixels",
+    )
+    parser.add_argument(
+        "--padding_size",
+        type=int,
+        default=256,
+        help="Padding for the analysis, in pixels",
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=1, help="Batch size for GPU computation."
+    )
 
     args = parser.parse_args()
     main(args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
-
