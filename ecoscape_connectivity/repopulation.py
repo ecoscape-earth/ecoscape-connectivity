@@ -81,7 +81,8 @@ def compute_connectivity(
         compute the dispersal distance.  At least one of dispersal, num_gaps must be provided.
     :param num_simulations: Number of simulations that are done.
     :param seed_density: density of seeds.  There are this many seeds for every square with edge of
-        dispersal distance.
+        (1 + 2 * dispersal) pixels.
+        The default of 4 means 1 seed every dispersal^2 pixels, approximately, and works well.
     :param tile_size: size of (square) tile in pixels.  This is the size that is processsed 
         in one go.  Choose the tile as large as possible, so that it fits into the GPU memory.
     :param border_size: size of analysis border used on each tile in pixels. This has to be at least 
@@ -495,7 +496,7 @@ def analyze_geotiffs(habitat_fn=None,
            print()
 
     # Produce the outputs on disk.
-    data_type = 'float32' if float_output else None
+    data_type = 'float32' if float_output else 'uint8'
     # Computes the border size of the output geotiff, according to whether we wish 
     # to include the border in the output or not. 
     output_border_size = border_size - padding_size
