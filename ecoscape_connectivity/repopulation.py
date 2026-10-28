@@ -501,11 +501,13 @@ def analyze_geotiffs(habitat_fn=None,
     # Computes the border size of the output geotiff, according to whether we wish 
     # to include the border in the output or not. 
     output_border_size = border_size - padding_size
-    with permeability_geotiff.crop_to_new_file(
-        output_border_size, data_type=data_type, filename=output_repop_fn, 
-        in_memory=in_memory) as connectivity_output:
-        with permeability_geotiff.crop_to_new_file(
+    with (
+        permeability_geotiff.crop_to_new_file(
+            output_border_size, data_type=data_type, filename=output_repop_fn,
+            in_memory=in_memory) as connectivity_output,
+        (permeability_geotiff.crop_to_new_file(
             output_border_size, data_type=data_type, filename=output_grad_fn,
-            in_memory=in_memory) if compute_flow else nullcontext() as flow_output:
-            do_analysis(connectivity_output, flow_output)
+            in_memory=in_memory) if compute_flow else nullcontext()) as flow_output,
+    ):
+        do_analysis(connectivity_output, flow_output)
     return connectivity_output, flow_output

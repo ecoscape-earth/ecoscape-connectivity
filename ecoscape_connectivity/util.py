@@ -42,7 +42,7 @@ def rescale_resistance(d, resolution_m, hop_length):
 
 def createdir_for_file(fn):
     """Ensures that the path to a file exists."""
-    dirs, ffn = os.path.split(fn)
+    dirs, _ffn = os.path.split(fn)
     # print("Creating", dirs)
     os.makedirs(dirs, exist_ok=True)
 
