@@ -15,6 +15,8 @@
 
 Open the Command Palette (⇧⌘P / Ctrl+Shift+P), run **Python: Select Interpreter**, and choose `.venv/bin/python`. Use the same environment as the kernel for notebooks. VS Code then runs and debugs tests with the project's dependencies.
 
+To see which lines the tests run, open the **Testing** view (the flask icon) and click **Run Tests with Coverage**. Lines that ran are marked green in the gutter, lines that didn't are marked red, and lines where only some branches ran get their own marker; hover over it to see which branch was missed. The **Test Coverage** panel lists the percentage for each file. To see the results of `make coverage` in the editor instead, install the [Coverage Gutters extension](https://marketplace.visualstudio.com/items?itemName=ryanluker.vscode-coverage-gutters) and click **Watch** in the status bar; it reads `coverage.xml` and updates each time you run `make coverage`.
+
 Install the [Ruff extension](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) to see Ruff's problems underlined as you type, and to fix and format files from the editor. For other editors, see [Ruff's editor setup](https://docs.astral.sh/ruff/editors/setup/).
 
 ## Managing dependencies
@@ -35,6 +37,23 @@ The project uses [Ruff](https://docs.astral.sh/ruff/) to find errors in Python c
 - Run `make lint` before committing. It fixes the problems Ruff can fix, reports the rest, and formats the code in place.
 - The git hook installed by `make install` runs the same checks on the files you are committing. If Ruff finds errors, the commit stops. If Ruff fixes or reformats a file, the commit also stops, so you can review the changes; stage them with `git add` and commit again.
 - The hook uses the Ruff version set by `rev` in `.pre-commit-config.yaml`, not the one in `.venv`. When you upgrade Ruff with `uv lock --upgrade-package ruff`, set `rev` to the same version, so the hook and `make lint` agree.
+
+## Measuring test coverage
+
+Coverage shows which lines and branches of `ecoscape_connectivity` the tests run, so you can see what is untested. To measure it:
+
+    make coverage
+
+This runs the tests and prints a table with each file's coverage. `Miss` and `BrPart` count the statements that never ran and the branches that went only one way, and `Missing` lists their line numbers (`359->363` means the branch from line 359 to line 363 never ran). It also writes:
+
+- `htmlcov/index.html`: open it in a browser and click a file name to see its code with lines that ran in green, lines that didn't in red, and partly run branches in yellow.
+- `coverage.xml`: for the Coverage Gutters extension (see [VS Code](#vs-code)).
+
+Settings are under `[tool.coverage.run]` and `[tool.coverage.report]` in `pyproject.toml`. `main.py` is left out because it is a command-line wrapper with no tests.
+
+`make coverage` fails if total coverage is below `fail_under` in `pyproject.toml`. When you add tests, raise `fail_under` to just below the new total, so coverage can't quietly drop again.
+
+On every pull request, GitHub Actions runs the tests with coverage and posts a comment showing the total and the coverage of the lines the pull request changes. The full table is on the run's summary page.
 
 ## Tasks
 

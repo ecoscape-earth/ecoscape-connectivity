@@ -1,0 +1,68 @@
+# Runs the tests with coverage on every pull request and on pushes to main.
+# python-coverage-comment-action posts the coverage comment on pull requests
+# and, on main, updates the badge data in the
+# python-coverage-comment-action-data branch.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  # Push badge data on main and comment on pull requests from this repository.
+  contents: write
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # The GDAL Python package is built against the system GDAL library, so the
+    # library version must match constraint-dependencies in pyproject.toml.
+    container: ghcr.io/osgeo/gdal:ubuntu-small-3.13.3
+    steps:
+      - name: Install build tools
+        run: apt-get update && apt-get install -y --no-install-recommends git g++ make
+
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        # --locked fails if uv.lock doesn't match pyproject.toml.
+        run: uv sync --locked
+
+      - name: Run tests with coverage
+        run: make coverage
+
+      - name: Write coverage to the workflow summary
+        if: always()
+        run: uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Coverage comment
+        id: coverage_comment
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # Pull requests from forks get a read-only token, so the comment is
+      # saved here and posted by coverage-comment.yml.
+      - name: Store pull request comment to be posted
+        if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-coverage-comment-action
+          path: python-coverage-comment-action.txt
+
+      # Lint last, so a lint error doesn't hide test and coverage results.
+      # Unlike make lint, these only report problems and don't change files.
+      - name: Check lint
+        if: always()
+        # The github format shows each problem on the pull request's code.
+        run: uv run ruff check --output-format=github .
+
+      - name: Check formatting
+        if: always()
+        run: uv run ruff format --check .
