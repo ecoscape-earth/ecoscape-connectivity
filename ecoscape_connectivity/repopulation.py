@@ -1,5 +1,7 @@
 # Standard imports
+from collections.abc import Iterator
 from contextlib import nullcontext
+from typing import Any
 
 import numpy as np
 import torch
@@ -258,6 +260,7 @@ class RandomPropagate(nn.Module):
         return x
 
     def get_grad(self):
+        assert self.goodness.grad is not None, "Call backward() before get_grad()."
         return self.goodness.grad * self.goodness
 
 
@@ -484,6 +487,9 @@ def analyze_geotiffs(
             h=tile_size,
             pad_value=permeability_padding,
         )
+        # Pairs of (habitat tile or None, permeability tile). Tiles are scgt
+        # Tile objects, which have no type information.
+        joint_reader: Iterator[tuple[Any, Any]]
         if habitat_geotiff is None:
             # We create a reader where the habitat is always None.
             joint_reader = SingleIterator(per_reader)
@@ -548,10 +554,15 @@ def analyze_geotiffs(
             # Normalizes the tiles, to fit into the geotiff format.
             # The population is simply normalized with a max of 255. After all it is in [0, 1].
             # We need to use type float because clam is not implemented for all types.
+            # Integer output from a torch analysis stays a tensor; the rest are
+            # numpy arrays. set_tile writes either.
+            connectivity_raster: np.ndarray | torch.Tensor
+            flow_raster: np.ndarray | torch.Tensor
             if float_output:
+                # when connectivity is a numpy array
                 if isinstance(connectivity, np.ndarray):
                     connectivity_raster = np.expand_dims(
-                        connectivity.numpy().astype(float), axis=0
+                        connectivity.astype(float), axis=0
                     )
                     flow_raster = np.expand_dims(np.log10(1.0 + flow) * 20.0, axis=0)
                 else:
