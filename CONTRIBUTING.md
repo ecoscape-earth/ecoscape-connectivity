@@ -19,6 +19,8 @@ To see which lines the tests run, open the **Testing** view (the flask icon) and
 
 Install the [Ruff extension](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff) to see Ruff's problems underlined as you type, and to fix and format files from the editor. For other editors, see [Ruff's editor setup](https://docs.astral.sh/ruff/editors/setup/).
 
+The Python extension shows type information as you hover and type, but it uses its own checker, which can disagree with mypy. To see mypy's errors underlined in the editor, install the [Mypy Type Checker extension](https://marketplace.visualstudio.com/items?itemName=ms-python.mypy-type-checker); it uses the mypy in `.venv` and the settings in `pyproject.toml`.
+
 ## Managing dependencies
 
 Dependencies are listed in `pyproject.toml`, and `uv.lock` pins every package, including indirect ones, to an exact version. This means everyone gets the same versions, and results can be reproduced.
@@ -32,11 +34,26 @@ Dependencies are listed in `pyproject.toml`, and `uv.lock` pins every package, i
 
 ## Checking and formatting code
 
-The project uses [Ruff](https://docs.astral.sh/ruff/) to find errors in Python code and to format it consistently.
+The project uses [Ruff](https://docs.astral.sh/ruff/) to find errors in Python code and to format it consistently, and [mypy](https://mypy-lang.org/) to check type annotations.
 
-- Run `make lint` before committing. It fixes the problems Ruff can fix, reports the rest, and formats the code in place.
-- The git hook installed by `make install` runs the same checks on the files you are committing. If Ruff finds errors, the commit stops. If Ruff fixes or reformats a file, the commit also stops, so you can review the changes; stage them with `git add` and commit again.
-- The hook uses the Ruff version set by `rev` in `.pre-commit-config.yaml`, not the one in `.venv`. When you upgrade Ruff with `uv lock --upgrade-package ruff`, set `rev` to the same version, so the hook and `make lint` agree.
+- Run `make lint` before committing. It fixes the problems Ruff can fix, reports the rest, formats the code in place, and then reports type errors.
+- The git hook installed by `make install` runs the same checks when you commit. Ruff checks the files you are committing; mypy checks the whole project. If either finds errors, the commit stops. If Ruff fixes or reformats a file, the commit also stops, so you can review the changes; stage them with `git add` and commit again.
+- The hook uses the Ruff version set by `rev` in `.pre-commit-config.yaml`, not the one in `.venv`. When you upgrade Ruff with `uv lock --upgrade-package ruff`, set `rev` to the same version, so the hook and `make lint` agree. mypy runs from `.venv`, so it always matches `uv.lock`.
+- Pull requests run the same checks on GitHub.
+
+### Type annotations
+
+Every function needs type annotations for its parameters and return value; mypy reports a function without them. Annotations document what a function accepts and returns, and let mypy find mistakes, such as passing the wrong type or using a value that may be `None`, before the code runs. Settings are under `[tool.mypy]` in `pyproject.toml`.
+
+A mypy error looks like this:
+
+    ecoscape_connectivity/repopulation.py:475: error: Item "None" of "dict[int, float] | None" has no attribute "items"  [union-attr]
+
+It gives the file and line, what is wrong, and the error code in brackets. Here, `permeability_dictionary` is annotated as a dictionary or `None`, and line 475 calls `.items()` on it without first checking that it isn't `None`. The fix is to check for `None` (with `if` or `assert`) before using the value; mypy then knows it is a dictionary. The [list of error codes](https://mypy.readthedocs.io/en/stable/error_code_list.html) explains each one.
+
+Fix the code or the annotation rather than silencing the error. Use `# type: ignore[code]`, with the specific error code and a comment saying why, only when mypy is wrong and the code can't reasonably be changed to show it, for example when a library's own annotations are incorrect. mypy reports an ignore that is no longer needed.
+
+scgt and the GDAL bindings (`osgeo`) have no type information, so mypy treats their objects, such as `GeoTiff`, as "any type" and doesn't check how they are used.
 
 ## Measuring test coverage
 

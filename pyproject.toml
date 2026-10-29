@@ -51,6 +51,10 @@ constraint-dependencies = ["gdal==3.13.3"]
 [tool.setuptools]
 packages = ["ecoscape_connectivity"]
 
+[tool.setuptools.package-data]
+# Tells type checkers in projects that use EcoScape to use its annotations.
+ecoscape_connectivity = ["py.typed"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 
@@ -69,8 +73,8 @@ fail_under = 80
 
 [tool.mypy]
 files = ["ecoscape_connectivity", "tests"]
-# Check the bodies of functions that don't have annotations yet.
-check_untyped_defs = true
+# Every function must have type annotations.
+disallow_untyped_defs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]

@@ -40,42 +40,44 @@ Install the exact dependency versions from `uv.lock` into `.venv`, then run the 
 #### compute\_connectivity
 
 ```python
-def compute_connectivity(habitat_fn=None,
-                         permeability_fn=None,
-                         permeability_scaling=1.0,
-                         landcover_fn=None,
-                         permeability_dict=None,
-                         connectivity_fn=None,
-                         flow_fn=None,
-                         gap_crossing=0,
-                         dispersal=None,
-                         num_gaps=None,
-                         num_simulations=400,
-                         seed_density=4,
-                         tile_size=1000,
-                         border_size=100,
-                         padding_size=0,
-                         permeability_padding=0,
-                         habitat_padding=0,
-                         minimum_habitat=1e-4,
-                         float_output=True,
-                         random_seed=None,
-                         in_memory=False,
-                         batch_size=1,
-                         generate_flow_memory=False,
-                         repopulation_only_in_habitat=True,
-                         device=None)
+def compute_connectivity(
+    habitat_fn: str | GeoTiff | None = None,
+    permeability_fn: str | GeoTiff | None = None,
+    permeability_scaling: float = 1.0,
+    landcover_fn: str | GeoTiff | None = None,
+    permeability_dict: dict[int, float] | None = None,
+    connectivity_fn: str | None = None,
+    flow_fn: str | None = None,
+    gap_crossing: int = 0,
+    dispersal: Dispersal | None = None,
+    num_gaps: int | None = None,
+    num_simulations: int = 400,
+    seed_density: float = 4,
+    tile_size: int = 1000,
+    border_size: int = 100,
+    padding_size: int = 0,
+    permeability_padding: float = 0,
+    habitat_padding: float = 0,
+    minimum_habitat: float = 1e-4,
+    float_output: bool = True,
+    random_seed: int | None = None,
+    in_memory: bool = False,
+    batch_size: int = 1,
+    generate_flow_memory: bool = False,
+    repopulation_only_in_habitat: bool = True,
+    device: str | torch.device | None = None
+) -> tuple[GeoTiff, GeoTiff | None]
 ```
 
 Function that computes the connectivity. This is the main function in the module.
 
 The outputs are encoded as follows:
 
-If floating point output is selected: 
+If floating point output is selected:
 - The connectivity output is in [0, 1].
 - The flow output is in [0, infty), obtained via 20 * log_10(1 + f).
 
-If integer output is selected: 
+If integer output is selected:
 - For connectivity, the values from [0, 1] are rescaled to the range 0..255 and encoded
   as integers.
 - For flow, the values from [0, infty) are encoded in log-scale via 20 * log_10(1 + f)
@@ -89,12 +91,12 @@ Integer output saves space, but floating point output is more accurate and intui
 0 = non habitat, and 1 = habitat.
 If this file is missing, then it is assumed that everywhere is suitable habitat, and that
 only the permeability determines possible movement. This is useful for modeling mammals.
-- `permeability_fn`: File name for permeability, or GeoTiff object (from scgt package) for the permeability. 
-If this is given, the permeability is read from this file, and scaled according to 
+- `permeability_fn`: File name for permeability, or GeoTiff object (from scgt package) for the permeability.
+If this is given, the permeability is read from this file, and scaled according to
 permeability_scaling.  If this is not given, then the permeability
 is derived from the landcover_fn file, and the dictionary.
 - `permeability_scaling`: scaling factor for the permeability.  The permeability values
-are used per-pixel.  If you have them instead of per-pixel, per n-pixels (e.g., each pixel is 100m 
+are used per-pixel.  If you have them instead of per-pixel, per n-pixels (e.g., each pixel is 100m
 but you computed the permeability for 1km), then you would specify here a scaling factor of 0.1 = 1 km / 100 m.  The permeability values p are rescaled to p ** permeability_scaling.
 - `landcover_fn`: name of terrain geotiff, or GeoTiff object from terrain geotiff.  This file contains
 terrain categories that are translated via permeability_dict.
@@ -106,17 +108,17 @@ If a terrain type is not found in the dictionary, it is assumed it has permeabil
 computation is faster.
 - `gap_crossing`: size of gap crossing in pixels. 0 means animals move via contiguous pixels.
 - `dispersal`: dispersal distance in pixels.
-- `num_gaps`: number of gaps to cross. Deprecated.  If dispersal is None, then this is used to 
+- `num_gaps`: number of gaps to cross. Deprecated.  If dispersal is None, then this is used to
 compute the dispersal distance.  At least one of dispersal, num_gaps must be provided.
 - `num_simulations`: Number of simulations that are done.
 - `seed_density`: density of seeds.  There are this many seeds for every square with edge of
 (1 + 2 * dispersal) pixels.
 The default of 4 means 1 seed every dispersal^2 pixels, approximately, and works well.
-- `tile_size`: size of (square) tile in pixels.  This is the size that is processsed 
+- `tile_size`: size of (square) tile in pixels.  This is the size that is processsed
 in one go.  Choose the tile as large as possible, so that it fits into the GPU memory.
-- `border_size`: size of analysis border used on each tile in pixels. This has to be at least 
+- `border_size`: size of analysis border used on each tile in pixels. This has to be at least
 equal to the dispersal distance.
-- `padding_size`: amount of padding around each tile.  If you specify 0 (no padding), then 
+- `padding_size`: amount of padding around each tile.  If you specify 0 (no padding), then
 the output raster will have the same size as the input, except for a border of size border_size
 all around it: so if the input is of size w, h and the border is of size b, then the output
 will be of size w - 2 * b, h - 2 * b.  If you specify a padding of p, then the output will
@@ -124,7 +126,7 @@ have a border of size b - p, and the output will be of size w - 2 * (b - p), h -
 The padding cannot be greater than the border size.
 - `permeability_padding`: value to be used to pad the permeability or terrain raster.
 - `habitat_padding`: value to be used to pad the habitat raster.
-- `batch_size`: batch size for GPU calculations.  Use the largest batch size that makes the 
+- `batch_size`: batch size for GPU calculations.  Use the largest batch size that makes the
 computation fit into the GPU memory.
 - `minimum_habitat`: if a tile has a fraction of habitat smaller than this, it is skipped.
 This saves time in countries where the habitat is only on a small portion.
@@ -137,7 +139,7 @@ will be returned. Flow is also generated only if generate_flow_memory is True.
 - `generate_flow_memory`: whether the flow should be generated in memory. Only used if
 in_memory is True.
 - `float_output`: use floating point output, generating a floating point tiff.
-- `repopulation_only_in_habitat`: if True, then the repopulation only occurs in the habitat. 
+- `repopulation_only_in_habitat`: if True, then the repopulation only occurs in the habitat.
 That's the default.  If False, the repopulation can be non-zero all over the output raster.
 - `device`: the device to be used for the computation. If None, then the device is chosen
 automatically.  Valid values include: 'cpu', 'cuda', 'mps'.
@@ -166,23 +168,23 @@ similarly sized 0-1 (float) tensor of seed points.
 #### \_\_init\_\_
 
 ```python
-def __init__(habitat,
-             terrain,
-             num_spreads=100,
-             spread_size=1,
-             device=None,
-             update_threshold=0.05,
-             coin_toss_probability=0.5)
+def __init__(habitat: torch.Tensor,
+             terrain: torch.Tensor,
+             num_spreads: int = 100,
+             spread_size: int = 1,
+             device: str | torch.device | None = None,
+             update_threshold: float = 0.05,
+             coin_toss_probability: float = 0.5) -> None
 ```
 
 **Arguments**:
 
 - `habitat`: torch tensor (2-dim) representing the habitat.
 - `terrain`: torch tensor (2-dim) representing the terrain.
-- `num_spreads`: number of bird spreads to use.  This is 
-the number of kernel spreads, in which birds that move by 
+- `num_spreads`: number of bird spreads to use.  This is
+the number of kernel spreads, in which birds that move by
 spread_size pixels.
-- `spread_size`: by how much (in pixels) birds spread in each spread. 
+- `spread_size`: by how much (in pixels) birds spread in each spread.
 This is 1 + gap_crossing.
 - `device`: device to use for computation (cpu, cuda, mps, etc).
 
@@ -191,7 +193,7 @@ This is 1 + gap_crossing.
 #### forward
 
 ```python
-def forward(seed)
+def forward(seed: torch.Tensor) -> torch.Tensor
 ```
 
 seed: a 0-1 (float) tensor of seed points.
@@ -201,15 +203,17 @@ seed: a 0-1 (float) tensor of seed points.
 #### analyze\_tile\_torch
 
 ```python
-def analyze_tile_torch(device=None,
-                       analysis_class=RandomPropagate,
-                       seed_density=4.0,
-                       produce_gradient=False,
-                       batch_size=1,
-                       dispersal=20,
-                       num_simulations=100,
-                       gap_crossing=0,
-                       repopulation_only_in_habitat=True)
+def analyze_tile_torch(
+    device: str | torch.device | None = None,
+    analysis_class: type[RandomPropagate] = RandomPropagate,
+    seed_density: float = 4.0,
+    produce_gradient: bool = False,
+    batch_size: int = 1,
+    dispersal: Dispersal = 20,
+    num_simulations: int = 100,
+    gap_crossing: int = 0,
+    repopulation_only_in_habitat: bool = True
+) -> Callable[[np.ndarray, np.ndarray], tuple[torch.Tensor, torch.Tensor]]
 ```
 
 This is the function that performs the analysis on a single tile.
@@ -225,7 +229,7 @@ You can change this if you wish to experiment with different classes.
 - `seed_density`: Consider a square of edge (1 + 2 * dispersal) pixels.
 In that square, there will be seed_density seeds on average.
 - `produce_gradient`: boolean, whether to produce a gradient as result or not.
-- `batch_size`: batch size for GPU calculations. For speed, use the largest 
+- `batch_size`: batch size for GPU calculations. For speed, use the largest
 batch size that fits in memory.
 - `dispersal`: dispersal distance in pixels.
 As above, if this is an integer, we do this constanst number of spreads
@@ -242,25 +246,26 @@ If False, the repopulation can be non-zero all over the output raster.
 #### analyze\_geotiffs
 
 ```python
-def analyze_geotiffs(habitat_fn=None,
-                     landcover_fn=None,
-                     permeability_dictionary=None,
-                     permeability_fn=None,
-                     permeability_scaling=1.0,
-                     analysis_fn=None,
-                     tile_size=1024,
-                     border_size=64,
-                     padding_size=0,
-                     permeability_padding=0,
-                     habitat_padding=0,
-                     generate_gradient=True,
-                     display_tiles=False,
-                     minimum_habitat=1e-4,
-                     output_repop_fn=None,
-                     output_grad_fn=None,
-                     report_progress=False,
-                     in_memory=False,
-                     float_output=False)
+def analyze_geotiffs(
+        habitat_fn: str | GeoTiff | None = None,
+        landcover_fn: str | GeoTiff | None = None,
+        permeability_dictionary: dict[int, float] | None = None,
+        permeability_fn: str | GeoTiff | None = None,
+        permeability_scaling: float = 1.0,
+        analysis_fn: AnalysisFunction | None = None,
+        tile_size: int = 1024,
+        border_size: int = 64,
+        padding_size: int = 0,
+        permeability_padding: float = 0,
+        habitat_padding: float = 0,
+        generate_gradient: bool = True,
+        display_tiles: bool | list[int] = False,
+        minimum_habitat: float = 1e-4,
+        output_repop_fn: str | None = None,
+        output_grad_fn: str | None = None,
+        report_progress: bool = False,
+        in_memory: bool = False,
+        float_output: bool = False) -> tuple[GeoTiff, GeoTiff | None]
 ```
 
 Reads a geotiff (or better, a pair of habitat and terrain geotiffs),
@@ -272,12 +277,12 @@ and then writing the results back.
 
 - `habitat_fn`: filename of habitat geotiff, or GeoTiff object from habitat geotiff
 - `landcover_fn`: filename of terrain geotiff, or GeoTiff object from terrain geotiff
-- `permeability_dictionary`: terrain to permeability mapping dictionary. 
+- `permeability_dictionary`: terrain to permeability mapping dictionary.
 Terrains not listed are assigned a permeability of 0.
-- `permeability_fn`: filename of permeability geotiff, or GeoTiff object from permeability geotiff. 
+- `permeability_fn`: filename of permeability geotiff, or GeoTiff object from permeability geotiff.
 This can be given in alternative to the above dictionary.
 - `permeability_scaling`: scaling factor for the permeability.  The permeability values
-are used per-pixel.  If you have them instead of per-pixel, per n-pixels (e.g., each pixel is 100m 
+are used per-pixel.  If you have them instead of per-pixel, per n-pixels (e.g., each pixel is 100m
 but you computed the permeability for 1km), then you would specify here a scaling factor of 0.1 = 1 km / 100 m.  The permeability values p are rescaled to p ** permeability_scaling.
 - `analysis_fn`: function used for analysis.
 - `tile_size`: dimensions of tile
@@ -306,7 +311,7 @@ If integer, values are rescaled to 0..255.
 #### constant
 
 ```python
-def constant(value)
+def constant(value: T) -> Callable[[], T]
 ```
 
 Returns a function that always returns the same value.
@@ -317,7 +322,7 @@ This is useful to allow a deterministic number of spreads.
 #### half\_cauchy
 
 ```python
-def half_cauchy(median, truncation)
+def half_cauchy(median: float, truncation: int) -> Callable[[], int]
 ```
 
 A distribution that has been found useful in modeling animal dispersal is the
@@ -348,7 +353,9 @@ median, after such truncation, is equal to the input median.
 #### dict\_translate
 
 ```python
-def dict_translate(np_arr, my_dict, default_val=0)
+def dict_translate(np_arr: np.ndarray,
+                   my_dict: dict[int, float],
+                   default_val: float = 0) -> np.ndarray
 ```
 
 Translates the terrain type according to a dictionary mapping
@@ -359,7 +366,7 @@ terrain type to values.
 #### read\_resistance\_csv
 
 ```python
-def read_resistance_csv(fn)
+def read_resistance_csv(fn: str) -> dict[int, float]
 ```
 
 Reads a dictionary of terrain to resistance in csv, producing a dictionary.
@@ -369,7 +376,7 @@ Reads a dictionary of terrain to resistance in csv, producing a dictionary.
 #### read\_transmission\_csv
 
 ```python
-def read_transmission_csv(fn)
+def read_transmission_csv(fn: str) -> dict[int, float]
 ```
 
 Reads a dictionary of terrain resistance or transmission in csv, producing a dictionary.
@@ -379,7 +386,8 @@ Reads a dictionary of terrain resistance or transmission in csv, producing a dic
 #### rescale\_resistance
 
 ```python
-def rescale_resistance(d, resolution_m, hop_length)
+def rescale_resistance(d: dict[int, float], resolution_m: float,
+                       hop_length: float) -> dict[int, float]
 ```
 
 Resistance dictionaries are based on decay over 100m.
@@ -391,7 +399,7 @@ actual hop length.
 #### createdir\_for\_file
 
 ```python
-def createdir_for_file(fn)
+def createdir_for_file(fn: str) -> None
 ```
 
 Ensures that the path to a file exists.
@@ -401,7 +409,7 @@ Ensures that the path to a file exists.
 ## SingleIterator Objects
 
 ```python
-class SingleIterator(object)
+class SingleIterator()
 ```
 
 Given an iterator, this class builds an iterator that returns

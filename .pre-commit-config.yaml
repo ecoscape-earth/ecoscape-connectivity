@@ -8,3 +8,15 @@ repos:
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
+  - repo: local
+    hooks:
+      # Check types with the mypy in .venv, which can see the project's
+      # packages. mypy's own hook runs in a separate environment that can't.
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        types: [python]
+        # Check the whole project, as configured in pyproject.toml, not only
+        # the files being committed; mypy's cache keeps this fast.
+        pass_filenames: false
