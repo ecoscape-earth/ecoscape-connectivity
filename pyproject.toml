@@ -33,6 +33,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "matplotlib==3.11.2",
+    "mypy>=2.4.1",
     "notebook==7.6.3",
     "pre-commit>=4.7.0",
     "pydoc-markdown==4.8.2",
@@ -65,6 +66,17 @@ relative_files = true
 show_missing = true
 # Starting coverage was 82%. Raise this as tests are added.
 fail_under = 80
+
+[tool.mypy]
+files = ["ecoscape_connectivity", "tests"]
+# Check the bodies of functions that don't have annotations yet.
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+# scgt and the GDAL bindings (osgeo) have no type information.
+module = ["scgt", "scgt.*", "osgeo", "osgeo.*"]
+ignore_missing_imports = true
 
 [project.scripts]
 ecoscape-connectivity = "ecoscape_connectivity.main:cli"
