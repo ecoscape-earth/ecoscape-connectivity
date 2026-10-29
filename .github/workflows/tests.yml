@@ -55,3 +55,14 @@ jobs:
         with:
           name: python-coverage-comment-action
           path: python-coverage-comment-action.txt
+
+      # Lint last, so a lint error doesn't hide test and coverage results.
+      # Unlike make lint, these only report problems and don't change files.
+      - name: Check lint
+        if: always()
+        # The github format shows each problem on the pull request's code.
+        run: uv run ruff check --output-format=github .
+
+      - name: Check formatting
+        if: always()
+        run: uv run ruff format --check .
