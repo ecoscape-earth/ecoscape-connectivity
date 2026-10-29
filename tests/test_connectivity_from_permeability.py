@@ -13,9 +13,7 @@ import ecoscape_connectivity
 def scaled_permeability_path(tmp_path: Path) -> Path:
     """Write the test permeability clipped to [0, 1] with a maximum of 1."""
     path = tmp_path / "scaled_permeability.tif"
-    permeability_path = (
-        Path(__file__).parent.parent / "assets" / "permeability.tif"
-    )
+    permeability_path = Path(__file__).parent.parent / "assets" / "permeability.tif"
     with GeoTiff.from_file(str(permeability_path)) as permeability:
         tile = permeability.get_all_as_tile()
         tile.m = np.clip(tile.m, 0, 1)
@@ -25,9 +23,7 @@ def scaled_permeability_path(tmp_path: Path) -> Path:
     return path
 
 
-@pytest.mark.parametrize(
-    "float_output", [True, False]
-)
+@pytest.mark.parametrize("float_output", [True, False])
 def test_connectivity_from_permeability(
     scaled_permeability_path: Path,
     tmp_path: Path,
@@ -54,4 +50,3 @@ def test_connectivity_from_permeability(
         with GeoTiff.from_file(str(output_path)) as output:
             assert output.size == expected_size
             assert output.data_types[0] == ("float32" if float_output else "uint8")
-

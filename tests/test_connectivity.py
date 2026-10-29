@@ -23,9 +23,7 @@ BORDER_SIZE = 50
     ],
     ids=["tiled", "single_tile", "with_border"],
 )
-def test_connectivity(
-    tmp_path: Path, tile_size: int, padding_size: int
-) -> None:
+def test_connectivity(tmp_path: Path, tile_size: int, padding_size: int) -> None:
     """Check that the outputs are the input size minus the cropped border."""
     connectivity_path = tmp_path / "connectivity.tif"
     flow_path = tmp_path / "flow.tif"

@@ -34,8 +34,10 @@ dependencies = [
 dev = [
     "matplotlib==3.11.2",
     "notebook==7.6.3",
+    "pre-commit>=4.7.0",
     "pydoc-markdown==4.8.2",
     "pytest==9.1.1",
+    "ruff>=0.17.3",
 ]
 
 [tool.uv]
