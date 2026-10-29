@@ -37,6 +37,7 @@ dev = [
     "pre-commit>=4.7.0",
     "pydoc-markdown==4.8.2",
     "pytest==9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.17.3",
 ]
 
@@ -51,6 +52,19 @@ packages = ["ecoscape_connectivity"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.coverage.run]
+branch = true
+source = ["ecoscape_connectivity"]
+# The command-line wrapper has no tests.
+omit = ["ecoscape_connectivity/main.py"]
+# Required by python-coverage-comment-action, which reads .coverage in CI.
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
+# Starting coverage was 82%. Raise this as tests are added.
+fail_under = 80
 
 [project.scripts]
 ecoscape-connectivity = "ecoscape_connectivity.main:cli"

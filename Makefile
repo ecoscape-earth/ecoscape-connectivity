@@ -1,4 +1,10 @@
-.PHONY: docs install lint test
+.PHONY: coverage docs install lint test
+
+# Runs the tests with coverage, then prints a report to the terminal, writes
+# an HTML report to htmlcov/index.html, and writes coverage.xml for the
+# Coverage Gutters VS Code extension. Settings are in pyproject.toml.
+coverage:
+	uv run pytest --cov --cov-report=term --cov-report=html --cov-report=xml tests
 
 # README.md is generated: edit README-prototype.md or the docstrings
 # instead, then run this target.

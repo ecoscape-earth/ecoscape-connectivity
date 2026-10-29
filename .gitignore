@@ -12,3 +12,6 @@ tests/*.pdf
 .ipynb_checkpoints/
 .vscode
 .venv/
+.coverage
+coverage.xml
+htmlcov/
