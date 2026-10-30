@@ -33,6 +33,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "matplotlib==3.11.2",
+    "mutmut>=3.8.1",
     "mypy>=2.4.1",
     "notebook==7.6.3",
     "pre-commit>=4.7.0",
