@@ -7,6 +7,7 @@ assets/Outputs/*.xml
 build/*
 *.aux.xml
 tests/*.pdf
+tests/output/
 
 .DS_Store
 .ipynb_checkpoints/
