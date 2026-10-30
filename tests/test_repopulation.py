@@ -9,8 +9,9 @@ import pytest
 import torch
 from matplotlib import colormaps
 from matplotlib.figure import Figure
+from matplotlib.image import AxesImage
 
-from ecoscape_connectivity import RandomPropagate
+from ecoscape_connectivity import RandomPropagate, analyze_tile_torch
 
 Dump = Callable[..., None]
 
@@ -66,15 +67,23 @@ def dump(request: pytest.FixtureRequest) -> Dump:
         # small values, which are nearly black.
         colormap = colormaps["inferno"].with_extremes(bad="lightgray")
         axes = figure.subplots(1, len(tensors), squeeze=False)[0]
+        # Values in [0, 1] share one colorbar; others, such as flow, get their own.
+        shared_image: AxesImage | None = None
         for ax, (name, tensor) in zip(axes, tensors.items(), strict=True):
-            values = tensor.numpy()
+            values = tensor.detach().numpy()
+            vmax = max(1.0, values.max())
             image = ax.imshow(
-                np.ma.masked_equal(values, 0), cmap=colormap, vmin=0, vmax=1
+                np.ma.masked_equal(values, 0), cmap=colormap, vmin=0, vmax=vmax
             )
+            if vmax > 1:
+                figure.colorbar(image, ax=ax, shrink=0.8)
+            else:
+                shared_image = image
             ax.set_title(f"{name}\nmin {values.min():.3g}, max {values.max():.3g}")
             ax.set_xticks([])
             ax.set_yticks([])
-        figure.colorbar(image, ax=axes, shrink=0.8)
+        if shared_image is not None:
+            figure.colorbar(shared_image, ax=axes, shrink=0.8)
         figure.savefig(path)
 
     return write
@@ -147,3 +156,107 @@ def test_population_within_permeability(dump: Dump) -> None:
     dump(habitat=habitat, permeability=permeability, seed=seed, population=population)
     assert (population >= 0).all()
     assert (population <= permeability).all()
+
+
+def analyze_tile(
+    habitat: np.ndarray,
+    permeability: np.ndarray,
+    produce_gradient: bool = True,
+    repopulation_only_in_habitat: bool = True,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Run analyze_tile_torch on 2-D arrays on the CPU with a fixed random seed.
+
+    Returns 2-D connectivity and flow. Flow is only computed when
+    produce_gradient is True; otherwise it is all zeros.
+    """
+    torch.manual_seed(0)
+    analyze = analyze_tile_torch(
+        device="cpu",
+        dispersal=5,
+        num_simulations=20,
+        produce_gradient=produce_gradient,
+        repopulation_only_in_habitat=repopulation_only_in_habitat,
+    )
+    # analyze_tile_torch expects tiles with one band: (1, height, width).
+    connectivity, flow = analyze(habitat[np.newaxis], permeability[np.newaxis])
+    return connectivity[0].detach(), flow[0].detach()
+
+
+def test_tile_bounds(dump: Dump) -> None:
+    """Check that connectivity is in [0, 1] and flow is never negative."""
+    rng = np.random.default_rng(1)
+    habitat = rng.random((30, 30))
+    permeability = rng.random((30, 30))
+    connectivity, flow = analyze_tile(habitat, permeability)
+    dump(
+        habitat=torch.from_numpy(habitat),
+        permeability=torch.from_numpy(permeability),
+        connectivity=connectivity,
+        flow=flow,
+    )
+    assert (connectivity >= 0).all()
+    assert (connectivity <= 1).all()
+    assert (flow >= 0).all()
+
+
+def test_tile_connectivity_only_in_habitat(dump: Dump) -> None:
+    """Check that repopulation_only_in_habitat confines connectivity to the
+    habitat, and that without it connectivity spreads outside the habitat.
+    """
+    habitat = np.ones((30, 30))
+    habitat[:, 10:20] = 0
+    permeability = np.ones((30, 30))
+    only_in_habitat, _ = analyze_tile(
+        habitat, permeability, produce_gradient=False, repopulation_only_in_habitat=True
+    )
+    everywhere, _ = analyze_tile(
+        habitat,
+        permeability,
+        produce_gradient=False,
+        repopulation_only_in_habitat=False,
+    )
+    dump(
+        habitat=torch.from_numpy(habitat),
+        only_in_habitat=only_in_habitat,
+        everywhere=everywhere,
+    )
+    assert (only_in_habitat[:, 10:20] == 0).all()
+    assert (everywhere[:, 10:20] > 0).any()
+
+
+def test_tile_no_flow_without_permeability(dump: Dump) -> None:
+    """Check that flow is zero where permeability is zero."""
+    habitat = np.ones((30, 30))
+    permeability = np.ones((30, 30))
+    permeability[:, 15] = 0
+    connectivity, flow = analyze_tile(habitat, permeability)
+    dump(
+        permeability=torch.from_numpy(permeability),
+        connectivity=connectivity,
+        flow=flow,
+    )
+    assert (flow[:, 15] == 0).all()
+    # Flow elsewhere, so the zero column is not just an empty result.
+    assert (flow > 0).any()
+
+
+def test_tile_higher_permeability(dump: Dump) -> None:
+    """Check that higher permeability gives higher connectivity.
+
+    Connectivity can never exceed the permeability, so a lower permeability
+    trivially gives lower connectivity. Instead, compare connectivity as a
+    fraction of the permeability: with 0.5, the population fades within a few
+    spreads, so it reaches less of the landscape than with 1.
+    """
+    habitat = np.ones((30, 30))
+    low, _ = analyze_tile(habitat, np.full((30, 30), 0.5), produce_gradient=False)
+    high, _ = analyze_tile(habitat, np.ones((30, 30)), produce_gradient=False)
+    dump(low_permeability=low, high_permeability=high)
+    assert low.mean() / 0.5 < high.mean()
+
+
+def test_tile_batch_size() -> None:
+    """Check that num_simulations must be a multiple of batch_size."""
+    analyze = analyze_tile_torch(device="cpu", num_simulations=10, batch_size=3)
+    with pytest.raises(AssertionError, match="multiple"):
+        analyze(np.ones((1, 10, 10)), np.ones((1, 10, 10)))
