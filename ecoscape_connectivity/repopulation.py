@@ -1,5 +1,7 @@
 # Standard imports
+from collections.abc import Callable, Iterator
 from contextlib import nullcontext
+from typing import Any
 
 import numpy as np
 import torch
@@ -13,34 +15,43 @@ from .util import SingleIterator, dict_translate
 
 gdal.UseExceptions()
 
+# A dispersal distance in pixels, or a function that samples one, such as
+# distributions.half_cauchy.
+type Dispersal = float | Callable[[], float]
+# Takes habitat and permeability tiles, and returns connectivity and flow.
+type AnalysisFunction = Callable[
+    [np.ndarray, np.ndarray],
+    tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
+]
+
 
 def compute_connectivity(
-    habitat_fn=None,
-    permeability_fn=None,
-    permeability_scaling=1.0,
-    landcover_fn=None,
-    permeability_dict=None,
-    connectivity_fn=None,
-    flow_fn=None,
-    gap_crossing=0,
-    dispersal=None,
-    num_gaps=None,
-    num_simulations=400,
-    seed_density=4,
-    tile_size=1000,
-    border_size=100,
-    padding_size=0,
-    permeability_padding=0,
-    habitat_padding=0,
-    minimum_habitat=1e-4,
-    float_output=True,
-    random_seed=None,
-    in_memory=False,
-    batch_size=1,
-    generate_flow_memory=False,
-    repopulation_only_in_habitat=True,
-    device=None,
-):
+    habitat_fn: str | GeoTiff | None = None,
+    permeability_fn: str | GeoTiff | None = None,
+    permeability_scaling: float = 1.0,
+    landcover_fn: str | GeoTiff | None = None,
+    permeability_dict: dict[int, float] | None = None,
+    connectivity_fn: str | None = None,
+    flow_fn: str | None = None,
+    gap_crossing: int = 0,
+    dispersal: Dispersal | None = None,
+    num_gaps: int | None = None,
+    num_simulations: int = 400,
+    seed_density: float = 4,
+    tile_size: int = 1000,
+    border_size: int = 100,
+    padding_size: int = 0,
+    permeability_padding: float = 0,
+    habitat_padding: float = 0,
+    minimum_habitat: float = 1e-4,
+    float_output: bool = True,
+    random_seed: int | None = None,
+    in_memory: bool = False,
+    batch_size: int = 1,
+    generate_flow_memory: bool = False,
+    repopulation_only_in_habitat: bool = True,
+    device: str | torch.device | None = None,
+) -> tuple[GeoTiff, GeoTiff | None]:
     """
     Function that computes the connectivity. This is the main function in the module.
     The outputs are encoded as follows:
@@ -183,14 +194,14 @@ class RandomPropagate(nn.Module):
 
     def __init__(
         self,
-        habitat,
-        terrain,
-        num_spreads=100,
-        spread_size=1,
-        device=None,
-        update_threshold=0.05,
-        coin_toss_probability=0.5,
-    ):
+        habitat: torch.Tensor,
+        terrain: torch.Tensor,
+        num_spreads: int = 100,
+        spread_size: int = 1,
+        device: str | torch.device | None = None,
+        update_threshold: float = 0.05,
+        coin_toss_probability: float = 0.5,
+    ) -> None:
         """
         :param habitat: torch tensor (2-dim) representing the habitat.
         :param terrain: torch tensor (2-dim) representing the terrain.
@@ -220,7 +231,7 @@ class RandomPropagate(nn.Module):
             self.kernel_size, stride=1, padding=spread_size
         )
 
-    def forward(self, seed):
+    def forward(self, seed: torch.Tensor) -> torch.Tensor:
         """
         seed: a 0-1 (float) tensor of seed points.
         """
@@ -257,7 +268,8 @@ class RandomPropagate(nn.Module):
             x = torch.squeeze(x, dim=0)
         return x
 
-    def get_grad(self):
+    def get_grad(self) -> torch.Tensor:
+        assert self.goodness.grad is not None, "Call backward() before get_grad()."
         return self.goodness.grad * self.goodness
 
 
@@ -266,16 +278,16 @@ class RandomPropagate(nn.Module):
 
 
 def analyze_tile_torch(
-    device=None,
-    analysis_class=RandomPropagate,
-    seed_density=4.0,
-    produce_gradient=False,
-    batch_size=1,
-    dispersal=20,
-    num_simulations=100,
-    gap_crossing=0,
-    repopulation_only_in_habitat=True,
-):
+    device: str | torch.device | None = None,
+    analysis_class: type[RandomPropagate] = RandomPropagate,
+    seed_density: float = 4.0,
+    produce_gradient: bool = False,
+    batch_size: int = 1,
+    dispersal: Dispersal = 20,
+    num_simulations: int = 100,
+    gap_crossing: int = 0,
+    repopulation_only_in_habitat: bool = True,
+) -> Callable[[np.ndarray, np.ndarray], tuple[torch.Tensor, torch.Tensor]]:
     """This is the function that performs the analysis on a single tile.
     The input and output to this function are in cpu, but the computation occurs in
     the specified device.
@@ -311,7 +323,9 @@ def analyze_tile_torch(
     # Computes the seed probability
     # seed_probability =  seed_density / ((2 * hop_length * total_spreads) ** 2)
 
-    def f(habitat, terrain):
+    def f(
+        habitat: np.ndarray, terrain: np.ndarray
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         _, w, h = habitat.shape
         assert habitat.shape == terrain.shape, (
             "Habitat and terrain must have the same shape."
@@ -379,26 +393,26 @@ def analyze_tile_torch(
 
 
 def analyze_geotiffs(
-    habitat_fn=None,
-    landcover_fn=None,
-    permeability_dictionary=None,
-    permeability_fn=None,
-    permeability_scaling=1.0,
-    analysis_fn=None,
-    tile_size=1024,
-    border_size=64,
-    padding_size=0,
-    permeability_padding=0,
-    habitat_padding=0,
-    generate_gradient=True,
-    display_tiles=False,
-    minimum_habitat=1e-4,
-    output_repop_fn=None,
-    output_grad_fn=None,
-    report_progress=False,
-    in_memory=False,
-    float_output=False,
-):
+    habitat_fn: str | GeoTiff | None = None,
+    landcover_fn: str | GeoTiff | None = None,
+    permeability_dictionary: dict[int, float] | None = None,
+    permeability_fn: str | GeoTiff | None = None,
+    permeability_scaling: float = 1.0,
+    analysis_fn: AnalysisFunction | None = None,
+    tile_size: int = 1024,
+    border_size: int = 64,
+    padding_size: int = 0,
+    permeability_padding: float = 0,
+    habitat_padding: float = 0,
+    generate_gradient: bool = True,
+    display_tiles: bool | list[int] = False,
+    minimum_habitat: float = 1e-4,
+    output_repop_fn: str | None = None,
+    output_grad_fn: str | None = None,
+    report_progress: bool = False,
+    in_memory: bool = False,
+    float_output: bool = False,
+) -> tuple[GeoTiff, GeoTiff | None]:
     """
     Reads a geotiff (or better, a pair of habitat and terrain geotiffs),
     iterating over the tiles, analyzing it with a specified analysis function,
@@ -431,6 +445,7 @@ def analyze_geotiffs(
     :param float_output: whether the output should be in floating point (True) or integer (False).
         If integer, values are rescaled to 0..255.
     """
+    assert analysis_fn is not None, "analysis_fn is required."
     if display_tiles is False:
         display_tiles = []
 
@@ -440,7 +455,7 @@ def analyze_geotiffs(
     habitat_geotiff = None
     if habitat_fn is not None:
         habitat_geotiff = (
-            GeoTiff.from_file(habitat_fn) if type(habitat_fn) == str else habitat_fn
+            GeoTiff.from_file(habitat_fn) if isinstance(habitat_fn, str) else habitat_fn
         )
     # We specify permeability either via a terrain and a dictionary, or via a permeability file
     # with scaling.  In either case, we have a permeability geotiff, which we then have to
@@ -450,19 +465,22 @@ def analyze_geotiffs(
         permeability_via_dictionary = False
         permeability_geotiff = (
             GeoTiff.from_file(permeability_fn)
-            if type(permeability_fn) == str
+            if isinstance(permeability_fn, str)
             else permeability_fn
         )
     else:
         # We use terrain and dictionary.
         permeability_via_dictionary = True
+        assert permeability_dictionary is not None, (
+            "permeability_dictionary is required with landcover_fn."
+        )
         scaled_dictionary = {
             k: np.clip(v**permeability_scaling, 0, 1)
             for k, v in permeability_dictionary.items()
         }
         permeability_geotiff = (
             GeoTiff.from_file(landcover_fn)
-            if type(landcover_fn) == str
+            if isinstance(landcover_fn, str)
             else landcover_fn
         )
 
@@ -473,8 +491,7 @@ def analyze_geotiffs(
             and habitat_geotiff.height == permeability_geotiff.height
         ), "Habitat and permeability must have the same size."
 
-    def do_analysis(conn_file, flow_file):
-        do_output = conn_file is not None
+    def do_analysis(conn_file: GeoTiff | None, flow_file: GeoTiff | None) -> None:
         # Reads the files.
         # Iterates through the tiles.
         per_reader = permeability_geotiff.get_reader(
@@ -484,6 +501,9 @@ def analyze_geotiffs(
             h=tile_size,
             pad_value=permeability_padding,
         )
+        # Pairs of (habitat tile or None, permeability tile). Tiles are scgt
+        # Tile objects, which have no type information.
+        joint_reader: Iterator[tuple[Any, Any]]
         if habitat_geotiff is None:
             # We create a reader where the habitat is always None.
             joint_reader = SingleIterator(per_reader)
@@ -532,12 +552,12 @@ def analyze_geotiffs(
                 if habitat is None:
                     skip_tile = np.mean(permeability) < minimum_habitat
             if skip_tile:
-                if do_output:
+                if conn_file is not None:
                     # These lines are here just to fix a bug into the production of the output geotiff,
                     # which does not set all to zero before the output is done.
                     conn_tile = per_tile_iter.clone_shape()
                     conn_file.set_tile(conn_tile, offset=border_size - padding_size)
-                    if compute_flow:
+                    if flow_file is not None:
                         flow = per_tile_iter.clone_shape()
                         flow_file.set_tile(flow, offset=border_size - padding_size)
                 continue
@@ -548,13 +568,20 @@ def analyze_geotiffs(
             # Normalizes the tiles, to fit into the geotiff format.
             # The population is simply normalized with a max of 255. After all it is in [0, 1].
             # We need to use type float because clam is not implemented for all types.
+            # Integer output from a torch analysis stays a tensor; the rest are
+            # numpy arrays. set_tile writes either.
+            connectivity_raster: np.ndarray | torch.Tensor
+            flow_raster: np.ndarray | torch.Tensor
             if float_output:
+                # when connectivity is a numpy array
                 if isinstance(connectivity, np.ndarray):
                     connectivity_raster = np.expand_dims(
-                        connectivity.numpy().astype(float), axis=0
+                        connectivity.astype(float), axis=0
                     )
                     flow_raster = np.expand_dims(np.log10(1.0 + flow) * 20.0, axis=0)
                 else:
+                    # Connectivity and flow are both tensors or both arrays.
+                    assert isinstance(flow, torch.Tensor)
                     connectivity_raster = connectivity.detach().numpy().astype(float)
                     flow_raster = (
                         np.log10(1.0 + flow.detach().numpy().astype(float)) * 20.0
@@ -569,6 +596,7 @@ def analyze_geotiffs(
                         axis=0,
                     )
                 else:
+                    assert isinstance(flow, torch.Tensor)
                     connectivity_raster = torch.clamp(
                         connectivity.type(torch.float) * 255, 0, 255
                     ).type(torch.uint8)
@@ -577,12 +605,12 @@ def analyze_geotiffs(
                     ).type(torch.uint8)
 
             # Prepares the tiles for writing.
-            if do_output:
+            if conn_file is not None:
                 # Writes the tiles.
                 conn_tile = per_tile_iter.clone_shape()
                 conn_tile.m = connectivity_raster
                 conn_file.set_tile(conn_tile, offset=border_size - padding_size)
-                if compute_flow:
+                if flow_file is not None:
                     flow_tile = per_tile_iter.clone_shape()
                     flow_tile.m = flow_raster
                     flow_file.set_tile(flow_tile, offset=border_size - padding_size)

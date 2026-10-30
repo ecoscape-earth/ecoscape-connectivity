@@ -1,21 +1,22 @@
 import math
+from collections.abc import Callable
 
 import numpy as np
 
 """In this module, we define probability distributions used to sample the spread."""
 
 
-def constant(value):
+def constant[T](value: T) -> Callable[[], T]:
     """Returns a function that always returns the same value.
     This is useful to allow a deterministic number of spreads."""
 
-    def f():
+    def f() -> T:
         return value
 
     return f
 
 
-def half_cauchy(median, truncation):
+def half_cauchy(median: float, truncation: int) -> Callable[[], int]:
     """
     A distribution that has been found useful in modeling animal dispersal is the
     half-Cauchy distribution; see e.g. Paradis, Emmanuel, Stephen R. Baillie, and William J. Sutherland.
@@ -38,7 +39,7 @@ def half_cauchy(median, truncation):
     """
 
     # define a cumulative distribution of a half-Cauchy with parameter sigma.
-    def cdf(sigma, y):
+    def cdf(sigma: float, y: float) -> float:
         return 2 / math.pi * math.atan(y / sigma)
 
     r"""
@@ -76,8 +77,8 @@ def half_cauchy(median, truncation):
     sigma = (median * c**0.5) / (c - 2 * median) ** 0.5
     # We now pre-compute the probabilities of each integer in the
     # range [0, truncation], extremes included.
-    cdf_dif = []
-    prev_cdf = 0
+    cdf_dif: list[float] = []
+    prev_cdf = 0.0
     for i in range(truncation + 1):
         cur_cdf = cdf(sigma, i + 0.5)
         cdf_dif.append(cur_cdf - prev_cdf)
@@ -86,7 +87,7 @@ def half_cauchy(median, truncation):
     cdf_dif = cdf_dif[1:]
     probs = np.array(cdf_dif) * (1 / np.sum(cdf_dif))
 
-    def f():
+    def f() -> int:
         """This is the function that does the actual sampling."""
         return 1 + int(np.random.choice(range(truncation), p=probs))
 

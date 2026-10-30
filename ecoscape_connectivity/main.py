@@ -5,7 +5,7 @@ from .repopulation import compute_connectivity
 from .util import createdir_for_file, read_transmission_csv
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     # Reads and transltes the resistance dictionary.
     transmission_d = read_transmission_csv(args.permeability)
     # Creates output folders, if missing.
@@ -32,7 +32,7 @@ def main(args):
     )
 
 
-def cli():
+def cli() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--habitat",

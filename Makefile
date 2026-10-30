@@ -18,11 +18,12 @@ install:
 	uv sync
 	uv run pre-commit install
 
-# Fixes the lint errors it can and reports the rest, then formats the code in
-# place.
+# Fixes the lint errors it can and reports the rest, formats the code in
+# place, then reports type errors. mypy settings are in pyproject.toml.
 lint:
 	uv run ruff check --fix .
 	uv run ruff format .
+	uv run mypy
 
 test:
 	uv run pytest tests
