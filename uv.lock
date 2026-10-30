@@ -952,6 +952,7 @@ dev = [
     { name = "pydoc-markdown" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "rasterio" },
     { name = "ruff" },
 ]
 
@@ -972,6 +973,7 @@ dev = [
     { name = "pydoc-markdown", specifier = "==4.8.2" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "rasterio", specifier = ">=1.5.2" },
     { name = "ruff", specifier = ">=0.17.3" },
 ]
 

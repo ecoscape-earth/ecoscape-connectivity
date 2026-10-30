@@ -1,19 +1,11 @@
 """Tests for repopulation.py."""
 
-import re
-from collections.abc import Callable
-from pathlib import Path
-
 import numpy as np
 import pytest
 import torch
-from matplotlib import colormaps
-from matplotlib.figure import Figure
-from matplotlib.image import AxesImage
 
 from ecoscape_connectivity import RandomPropagate, analyze_tile_torch
-
-Dump = Callable[..., None]
+from tests.conftest import Dump
 
 
 def propagate(
@@ -46,47 +38,6 @@ def single_seed(height: int, width: int, row: int, column: int) -> torch.Tensor:
     seed = torch.zeros(height, width)
     seed[row, column] = 1
     return seed
-
-
-@pytest.fixture
-def dump(request: pytest.FixtureRequest) -> Dump:
-    """Return a function that draws tensors side by side as an image, for inspection.
-
-    Each test writes to tests/output/<test file>/<test name>.png, which
-    is kept after the run and ignored by git. Parametrized names such as
-    test_spreads[1-1] become test_spreads_1-1.
-    """
-    file_name = re.sub(r"[^\w-]+", "_", request.node.name).strip("_") + ".png"
-    path = Path(__file__).parent / "output" / request.path.stem / file_name
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    def write(**tensors: torch.Tensor) -> None:
-        figure = Figure(figsize=(3 * len(tensors) + 1, 3.5), layout="constrained")
-        figure.suptitle(f"{request.node.name} (gray: exactly 0)")
-        # Exact zeros are masked and drawn in gray, so they stand out from
-        # small values, which are nearly black.
-        colormap = colormaps["inferno"].with_extremes(bad="lightgray")
-        axes = figure.subplots(1, len(tensors), squeeze=False)[0]
-        # Values in [0, 1] share one colorbar; others, such as flow, get their own.
-        shared_image: AxesImage | None = None
-        for ax, (name, tensor) in zip(axes, tensors.items(), strict=True):
-            values = tensor.detach().numpy()
-            vmax = max(1.0, values.max())
-            image = ax.imshow(
-                np.ma.masked_equal(values, 0), cmap=colormap, vmin=0, vmax=vmax
-            )
-            if vmax > 1:
-                figure.colorbar(image, ax=ax, shrink=0.8)
-            else:
-                shared_image = image
-            ax.set_title(f"{name}\nmin {values.min():.3g}, max {values.max():.3g}")
-            ax.set_xticks([])
-            ax.set_yticks([])
-        if shared_image is not None:
-            figure.colorbar(shared_image, ax=axes, shrink=0.8)
-        figure.savefig(path)
-
-    return write
 
 
 @pytest.mark.parametrize(
