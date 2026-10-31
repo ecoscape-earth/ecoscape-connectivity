@@ -84,6 +84,28 @@ warn_unused_ignores = true
 module = ["scgt", "scgt.*", "osgeo", "osgeo.*", "rasterio", "rasterio.*"]
 ignore_missing_imports = true
 
+[tool.mutmut]
+source_paths = ["ecoscape_connectivity"]
+# The command-line wrapper has no tests, as in [tool.coverage.run].
+do_not_mutate = ["ecoscape_connectivity/main.py"]
+pytest_add_cli_args_test_selection = ["tests/"]
+# mutmut runs the tests from a copy in mutants/, and the tests read the
+# test data relative to their own location.
+also_copy = ["assets/"]
+# torch isn't safe to use in a process forked after it was imported.
+process_isolation = "forkserver"
+# Mutants that mypy rejects are reported as caught and not run.
+type_check_command = [
+    "mypy",
+    "ecoscape_connectivity",
+    "--output",
+    "json",
+    "--disable-error-code",
+    "unused-ignore",
+]
+# Progress output, which tests don't check.
+do_not_mutate_patterns = ['print\(']
+
 [project.scripts]
 ecoscape-connectivity = "ecoscape_connectivity.main:cli"
 

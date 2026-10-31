@@ -146,7 +146,7 @@ def compute_connectivity(
         torch.manual_seed(random_seed)
     if dispersal is None:
         assert num_gaps is not None, (
-            "One of dispersal and gap crossing should be specified."
+            "One of dispersal and gap crossing should be specified."  # pragma: no mutate
         )
         dispersal = (1 + gap_crossing) * num_gaps
     # Builds the analysis function.
@@ -215,8 +215,12 @@ class RandomPropagate(nn.Module):
         super().__init__()
         # spread_size and num_spreads have to be integers, not callables here.
         self.device = device or torch.device("cpu")
-        assert type(spread_size) == int, "spread_size must be an int"
-        assert type(num_spreads) == int, "num_spreads must be an int"
+        assert type(spread_size) == int, (
+            "spread_size must be an int"  # pragma: no mutate
+        )
+        assert type(num_spreads) == int, (
+            "num_spreads must be an int"  # pragma: no mutate
+        )
         self.habitat = habitat
         self.goodness = torch.nn.Parameter(terrain, requires_grad=True)
         self.h, self.w = habitat.shape
@@ -269,7 +273,9 @@ class RandomPropagate(nn.Module):
         return x
 
     def get_grad(self) -> torch.Tensor:
-        assert self.goodness.grad is not None, "Call backward() before get_grad()."
+        assert self.goodness.grad is not None, (
+            "Call backward() before get_grad()."  # pragma: no mutate
+        )
         return self.goodness.grad * self.goodness
 
 
@@ -318,7 +324,9 @@ def analyze_tile_torch(
         else torch.device("cpu")
     )
 
-    assert type(gap_crossing) == int, "gap_crossing must be an int"
+    assert type(gap_crossing) == int, (
+        "gap_crossing must be an int"  # pragma: no mutate
+    )
 
     # Computes the seed probability
     # seed_probability =  seed_density / ((2 * hop_length * total_spreads) ** 2)
@@ -328,10 +336,12 @@ def analyze_tile_torch(
     ) -> tuple[torch.Tensor, torch.Tensor]:
         _, w, h = habitat.shape
         assert habitat.shape == terrain.shape, (
-            "Habitat and terrain must have the same shape."
+            "Habitat and terrain must have the same shape."  # pragma: no mutate
         )
         # We may need to do multiple spreads if the batch size is smaller than the total spreads.
-        assert num_simulations % batch_size == 0, "Simulations not multiples of batch"
+        assert num_simulations % batch_size == 0, (
+            "Simulations not multiples of batch"  # pragma: no mutate
+        )
         num_batches = num_simulations // batch_size
         tot_grad = torch.zeros((1, w, h), dtype=torch.float, device=device)
         tot_pop = torch.zeros((1, w, h), dtype=torch.float, device=device)
@@ -445,7 +455,9 @@ def analyze_geotiffs(
     :param float_output: whether the output should be in floating point (True) or integer (False).
         If integer, values are rescaled to 0..255.
     """
-    assert analysis_fn is not None, "analysis_fn is required."
+    assert analysis_fn is not None, (
+        "analysis_fn is required."  # pragma: no mutate
+    )
     if display_tiles is False:
         display_tiles = []
 
@@ -472,7 +484,7 @@ def analyze_geotiffs(
         # We use terrain and dictionary.
         permeability_via_dictionary = True
         assert permeability_dictionary is not None, (
-            "permeability_dictionary is required with landcover_fn."
+            "permeability_dictionary is required with landcover_fn."  # pragma: no mutate
         )
         scaled_dictionary = {
             k: np.clip(v**permeability_scaling, 0, 1)
@@ -489,7 +501,7 @@ def analyze_geotiffs(
         assert (
             habitat_geotiff.width == permeability_geotiff.width
             and habitat_geotiff.height == permeability_geotiff.height
-        ), "Habitat and permeability must have the same size."
+        ), "Habitat and permeability must have the same size."  # pragma: no mutate
 
     def do_analysis(conn_file: GeoTiff | None, flow_file: GeoTiff | None) -> None:
         # Reads the files.
@@ -528,7 +540,8 @@ def analyze_geotiffs(
                 else None
             )  # Habitat tile
             raw_permeability = np.nan_to_num(per_tile_iter.m)  # Raw Permeability tile
-            if display_tiles is True or i in display_tiles:
+            # Drawing isn't tested, so mutmut leaves it alone.
+            if display_tiles is True or i in display_tiles:  # pragma: no mutate block
                 if habitat is not None:
                     hab_tile_iter.draw_tile(title="Habitat tile")
                 per_tile_iter.draw_tile(title="Terrain tile")
@@ -614,14 +627,15 @@ def analyze_geotiffs(
                     flow_tile = per_tile_iter.clone_shape()
                     flow_tile.m = flow_raster
                     flow_file.set_tile(flow_tile, offset=border_size - padding_size)
-            # Displays the output if so asked.
-            if display_tiles is True or i in display_tiles:
+            # Displays the output if so asked. Drawing and progress output
+            # aren't tested, so mutmut leaves them alone.
+            if display_tiles is True or i in display_tiles:  # pragma: no mutate block
                 conn_tile.draw_tile(title="Connectivity")
                 if compute_flow:
                     flow_tile.draw_tile(title="Flow")
-            if report_progress:
+            if report_progress:  # pragma: no mutate block
                 print(i, end=" ", flush=True)
-        if report_progress:
+        if report_progress:  # pragma: no mutate block
             print()
 
     # Produce the outputs on disk.
