@@ -78,9 +78,15 @@ Coverage shows which lines the tests run, but not whether the tests check what t
 
     make mutation
 
-The first run tests every mutant and can take a long time. The results are kept in `mutants/`, so later runs only retest functions whose code changed; delete `mutants/` to start from scratch. To run only some mutants, give a pattern: `uv run mutmut run "ecoscape_connectivity.repopulation*"`. The score is also written as badge data to `mutants/mutation-score.json`.
+A full run takes about 30 minutes, so it isn't part of the checks on pull requests. Run it before a release (see [Before a release](#before-a-release)), and on the functions you are working on while writing tests. The results are kept in `mutants/`, so later runs only retest functions whose code changed; delete `mutants/` to start from scratch. To run only some mutants, give a pattern: `uv run mutmut run "ecoscape_connectivity.repopulation*"`. The score is also written as badge data to `mutants/mutation-score.json`.
 
 Settings are under `[tool.mutmut]` in `pyproject.toml`. Like coverage, it leaves out `main.py`. Mutants that mypy rejects aren't run.
+
+mutmut runs the tests in forked processes. On macOS, PyTorch touches Apple's GPU framework (Metal) in a forked process even on the CPU, for example in `backward()`, and macOS aborts the process: the run stops with `Fatal Python error: Aborted` and `Child exited with code -6`. `make mutation` avoids this by setting `OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`, which turns off that macOS check; on Linux the variable has no effect. If you run `uv run mutmut run` yourself on macOS, set it too:
+
+    OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES uv run mutmut run
+
+Tests must also pass `device="cpu"` to any function that takes a `device`. Without it, EcoScape checks for a GPU, and the check for the Apple GPU (MPS) in a forked process can still crash. `make test` doesn't fork, so it passes either way. A CPU device also makes the results the same on every machine.
 
 ### Reading the results
 
@@ -134,6 +140,21 @@ To build the documentation:
     make docs
 
 This regenerates `Documentation.md` from the docstrings and `README.md` from `README-prototype.md` and `Documentation.md`. Don't edit `README.md` directly.
+
+## Releasing
+
+### Before a release
+
+Run mutation testing on the whole package, starting from scratch:
+
+    rm -rf mutants
+    make mutation
+
+Starting from scratch matters: mutmut only retests functions whose code changed, so a survivor from an earlier run stays a survivor even after a test that kills it is added. A full run takes about 30 minutes on a laptop, which is why it runs before a release rather than on every pull request.
+
+Then go through the survivors in `uv run mutmut browse`, starting with functions changed since the last release (`git diff <last release tag> -- ecoscape_connectivity/` lists them). Each survivor is a missing test, an equivalent mutant, or code not worth testing (see [Reading the results](#reading-the-results)). A release doesn't need zero survivors, but every survivor in changed code should be understood: write the missing tests, or turn mutation off with a comment saying why. Note the score in `mutants/mutation-score.json` and the number of survivors in the release pull request, so the next release can compare.
+
+### Publishing
 
 To build the package:
 

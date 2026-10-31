@@ -43,6 +43,7 @@ def test_connectivity_from_permeability(
         num_simulations=1,
         dispersal=10,
         float_output=float_output,
+        device="cpu",
     )
     with GeoTiff.from_file(str(scaled_permeability_path)) as permeability:
         expected_size = permeability.size

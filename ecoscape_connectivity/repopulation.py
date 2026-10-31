@@ -316,6 +316,10 @@ def analyze_tile_torch(
         If False, the repopulation can be non-zero all over the output raster.
     """
 
+    # The device depends on the machine, so tests pass device="cpu" and
+    # mutmut leaves this alone. Checking for MPS in a forked process, as
+    # mutmut runs tests, crashes on macOS.
+    # pragma: no mutate start
     device = device or (
         torch.device("cuda")
         if torch.cuda.is_available()
@@ -323,6 +327,7 @@ def analyze_tile_torch(
         if torch.backends.mps.is_available()
         else torch.device("cpu")
     )
+    # pragma: no mutate end
 
     assert type(gap_crossing) == int, (
         "gap_crossing must be an int"  # pragma: no mutate

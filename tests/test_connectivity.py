@@ -41,6 +41,7 @@ def test_connectivity(tmp_path: Path, tile_size: int, padding_size: int) -> None
         padding_size=padding_size,
         num_simulations=2,
         dispersal=ecoscape_connectivity.half_cauchy(15, 40),
+        device="cpu",
     )
     cropped = 2 * (BORDER_SIZE - padding_size)
     with GeoTiff.from_file(str(HABITAT_PATH)) as habitat:
