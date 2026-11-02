@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for ecoscape_connectivity/repopulation.py: 86%</title>
+    <title>Coverage for ecoscape_connectivity/repopulation.py: 91%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_c827f16f.png">
     <link rel="stylesheet" href="style_cb_4667309f.css" type="text/css">
     <script src="coverage_html_cb_54cfdca1.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>ecoscape_connectivity<span class="sep">/</span>repopulation.py</b>:
-            <span class="pc_cov">86%</span>
+            <span class="pc_cov">91%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">185 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">171<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">14<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">175<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">10<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">17<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">10<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_f63a35aa015aa6d7_distributions_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_f63a35aa015aa6d7_util_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.17.0">coverage.py v7.17.0</a>,
-            created at 2026-10-30 17:01 +0000
+            created at 2026-11-02 15:03 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -226,8 +226,8 @@
     <p class="run run2"><span class="n"><a id="t142" href="#t142">142</a></span><span class="t">        <span class="key">or</span> <span class="nam">type</span><span class="op">(</span><span class="nam">permeability_fn</span><span class="op">)</span> <span class="op">==</span> <span class="nam">GeoTiff</span>&nbsp;</span><span class="r"></span></p>
     <p class="run run2"><span class="n"><a id="t143" href="#t143">143</a></span><span class="t">    <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t144" href="#t144">144</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t145" href="#t145">145</a></span><span class="t">    <span class="key">if</span> <span class="nam">random_seed</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">145&#x202F;&#x219B;&#x202F;146</span><span class="annotate long">line 145 didn't jump to line 146 because the condition on line 145 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t146" href="#t146">146</a></span><span class="t">        <span class="nam">torch</span><span class="op">.</span><span class="nam">manual_seed</span><span class="op">(</span><span class="nam">random_seed</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t145" href="#t145">145</a></span><span class="t">    <span class="key">if</span> <span class="nam">random_seed</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t146" href="#t146">146</a></span><span class="t">        <span class="nam">torch</span><span class="op">.</span><span class="nam">manual_seed</span><span class="op">(</span><span class="nam">random_seed</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="par run show_par"><span class="n"><a id="t147" href="#t147">147</a></span><span class="t">    <span class="key">if</span> <span class="nam">dispersal</span> <span class="key">is</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">147&#x202F;&#x219B;&#x202F;148</span><span class="annotate long">line 147 didn't jump to line 148 because the condition on line 147 was never true</span></span></p>
     <p class="mis show_mis"><span class="n"><a id="t148" href="#t148">148</a></span><span class="t">        <span class="key">assert</span> <span class="nam">num_gaps</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">,</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t149" href="#t149">149</a></span><span class="t">            <span class="str">&quot;One of dispersal and gap crossing should be specified.&quot;</span>&nbsp;</span><span class="r"></span></p>
@@ -322,9 +322,9 @@
     <p class="pln"><span class="n"><a id="t238" href="#t238">238</a></span><span class="t">        <span class="com"># First, we multiply the seed by the habitat, to confine the seeds to</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t239" href="#t239">239</a></span><span class="t">        <span class="com"># where birds can live.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t240" href="#t240">240</a></span><span class="t">        <span class="nam">x</span> <span class="op">=</span> <span class="nam">seed</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">habitat</span> <span class="op">*</span> <span class="nam">self</span><span class="op">.</span><span class="nam">goodness</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t241" href="#t241">241</a></span><span class="t">        <span class="key">if</span> <span class="nam">x</span><span class="op">.</span><span class="nam">ndim</span> <span class="op">&lt;</span> <span class="num">3</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">241&#x202F;&#x219B;&#x202F;243</span><span class="annotate long">line 241 didn't jump to line 243 because the condition on line 241 was never true</span></span></p>
+    <p class="run"><span class="n"><a id="t241" href="#t241">241</a></span><span class="t">        <span class="key">if</span> <span class="nam">x</span><span class="op">.</span><span class="nam">ndim</span> <span class="op">&lt;</span> <span class="num">3</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t242" href="#t242">242</a></span><span class="t">            <span class="com"># We put it into shape (1, w, h) because the pooling operator expects this.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t243" href="#t243">243</a></span><span class="t">            <span class="nam">x</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="nam">x</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="num">0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t243" href="#t243">243</a></span><span class="t">            <span class="nam">x</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">unsqueeze</span><span class="op">(</span><span class="nam">x</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="num">0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t244" href="#t244">244</a></span><span class="t">        <span class="com"># Now we must propagate n times.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t245" href="#t245">245</a></span><span class="t">        <span class="nam">empty_spreads</span> <span class="op">=</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t246" href="#t246">246</a></span><span class="t">        <span class="key">for</span> <span class="nam">i</span> <span class="key">in</span> <span class="nam">range</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">num_spreads</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -348,8 +348,8 @@
     <p class="run"><span class="n"><a id="t264" href="#t264">264</a></span><span class="t">                <span class="nam">empty_spreads</span> <span class="op">=</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t265" href="#t265">265</a></span><span class="t">            <span class="key">if</span> <span class="nam">empty_spreads</span> <span class="op">&gt;</span> <span class="num">4</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t266" href="#t266">266</a></span><span class="t">                <span class="key">break</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t267" href="#t267">267</a></span><span class="t">        <span class="key">if</span> <span class="nam">seed</span><span class="op">.</span><span class="nam">ndim</span> <span class="op">&lt;</span> <span class="num">3</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">267&#x202F;&#x219B;&#x202F;268</span><span class="annotate long">line 267 didn't jump to line 268 because the condition on line 267 was never true</span></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t268" href="#t268">268</a></span><span class="t">            <span class="nam">x</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">squeeze</span><span class="op">(</span><span class="nam">x</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="num">0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t267" href="#t267">267</a></span><span class="t">        <span class="key">if</span> <span class="nam">seed</span><span class="op">.</span><span class="nam">ndim</span> <span class="op">&lt;</span> <span class="num">3</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t268" href="#t268">268</a></span><span class="t">            <span class="nam">x</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">squeeze</span><span class="op">(</span><span class="nam">x</span><span class="op">,</span> <span class="nam">dim</span><span class="op">=</span><span class="num">0</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t269" href="#t269">269</a></span><span class="t">        <span class="key">return</span> <span class="nam">x</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t270" href="#t270">270</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t271" href="#t271">271</a></span><span class="t">    <span class="key">def</span> <span class="nam">get_grad</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span> <span class="op">-&gt;</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">Tensor</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
@@ -454,7 +454,7 @@
     <p class="pln"><span class="n"><a id="t370" href="#t370">370</a></span><span class="t">            <span class="com">## Sample the hop and spreads if necessary.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t371" href="#t371">371</a></span><span class="t">            <span class="com"># And passes them through the repopulation.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t372" href="#t372">372</a></span><span class="t">            <span class="nam">pop</span> <span class="op">=</span> <span class="nam">repopulator</span><span class="op">(</span><span class="nam">seeds</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t373" href="#t373">373</a></span><span class="t">            <span class="key">if</span> <span class="nam">repopulation_only_in_habitat</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">373&#x202F;&#x219B;&#x202F;377</span><span class="annotate long">line 373 didn't jump to line 377 because the condition on line 373 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t373" href="#t373">373</a></span><span class="t">            <span class="key">if</span> <span class="nam">repopulation_only_in_habitat</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t374" href="#t374">374</a></span><span class="t">                <span class="nam">pop</span> <span class="op">*=</span> <span class="nam">hab</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t375" href="#t375">375</a></span><span class="t">            <span class="com"># We need to take the mean over each batch.  This will tell us what is the</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t376" href="#t376">376</a></span><span class="t">            <span class="com"># average repopulation.</span>&nbsp;</span><span class="r"></span></p>
@@ -462,7 +462,7 @@
     <p class="pln"><span class="n"><a id="t378" href="#t378">378</a></span><span class="t">            <span class="com"># This is the sum across all batches.  So, the gradient will be for the total</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t379" href="#t379">379</a></span><span class="t">            <span class="com"># of the batch. This is why the gradient will need to be divided by the number</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t380" href="#t380">380</a></span><span class="t">            <span class="com"># of simulations.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t381" href="#t381">381</a></span><span class="t">            <span class="key">if</span> <span class="nam">produce_gradient</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">381&#x202F;&#x219B;&#x202F;354</span><span class="annotate long">line 381 didn't jump to line 354 because the condition on line 381 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t381" href="#t381">381</a></span><span class="t">            <span class="key">if</span> <span class="nam">produce_gradient</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t382" href="#t382">382</a></span><span class="t">                <span class="nam">q</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">sum</span><span class="op">(</span><span class="nam">pop</span> <span class="op">/</span> <span class="nam">num_batches</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t383" href="#t383">383</a></span><span class="t">                <span class="nam">q</span><span class="op">.</span><span class="nam">backward</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t384" href="#t384">384</a></span><span class="t">                <span class="nam">tot_grad</span> <span class="op">+=</span> <span class="nam">repopulator</span><span class="op">.</span><span class="nam">get_grad</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -470,9 +470,9 @@
     <p class="run"><span class="n"><a id="t386" href="#t386">386</a></span><span class="t">        <span class="nam">avg_pop</span><span class="op">,</span> <span class="nam">avg_grad</span> <span class="op">=</span> <span class="nam">tot_pop</span> <span class="op">/</span> <span class="nam">num_batches</span><span class="op">,</span> <span class="nam">tot_grad</span> <span class="op">/</span> <span class="nam">num_simulations</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t387" href="#t387">387</a></span><span class="t">        <span class="key">return</span> <span class="nam">avg_pop</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="str">&quot;cpu&quot;</span><span class="op">)</span><span class="op">,</span> <span class="nam">avg_grad</span><span class="op">.</span><span class="nam">to</span><span class="op">(</span><span class="str">&quot;cpu&quot;</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t388" href="#t388">388</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t389" href="#t389">389</a></span><span class="t">    <span class="key">if</span> <span class="key">not</span> <span class="nam">produce_gradient</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">389&#x202F;&#x219B;&#x202F;391</span><span class="annotate long">line 389 didn't jump to line 391 because the condition on line 389 was never true</span></span></p>
+    <p class="run"><span class="n"><a id="t389" href="#t389">389</a></span><span class="t">    <span class="key">if</span> <span class="key">not</span> <span class="nam">produce_gradient</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t390" href="#t390">390</a></span><span class="t">        <span class="com"># We remove all memory/time requirements due to gradient computation.</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t391" href="#t391">391</a></span><span class="t">        <span class="nam">f</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">no_grad</span><span class="op">(</span><span class="op">)</span><span class="op">(</span><span class="nam">f</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t391" href="#t391">391</a></span><span class="t">        <span class="nam">f</span> <span class="op">=</span> <span class="nam">torch</span><span class="op">.</span><span class="nam">no_grad</span><span class="op">(</span><span class="op">)</span><span class="op">(</span><span class="nam">f</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t392" href="#t392">392</a></span><span class="t">    <span class="key">return</span> <span class="nam">f</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t393" href="#t393">393</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t394" href="#t394">394</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
@@ -622,7 +622,7 @@
     <p class="run"><span class="n"><a id="t538" href="#t538">538</a></span><span class="t">            <span class="nam">skip_tile</span> <span class="op">=</span> <span class="key">False</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t539" href="#t539">539</a></span><span class="t">            <span class="key">if</span> <span class="nam">habitat</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t540" href="#t540">540</a></span><span class="t">                <span class="nam">skip_tile</span> <span class="op">=</span> <span class="nam">np</span><span class="op">.</span><span class="nam">mean</span><span class="op">(</span><span class="nam">habitat</span><span class="op">)</span> <span class="op">&lt;</span> <span class="nam">minimum_habitat</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t541" href="#t541">541</a></span><span class="t">            <span class="key">if</span> <span class="key">not</span> <span class="nam">skip_tile</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">541&#x202F;&#x219B;&#x202F;554</span><span class="annotate long">line 541 didn't jump to line 554 because the condition on line 541 was always true</span></span></p>
+    <p class="run"><span class="n"><a id="t541" href="#t541">541</a></span><span class="t">            <span class="key">if</span> <span class="key">not</span> <span class="nam">skip_tile</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t542" href="#t542">542</a></span><span class="t">                <span class="com"># Scales the permeability.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t543" href="#t543">543</a></span><span class="t">                <span class="key">if</span> <span class="nam">permeability_via_dictionary</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t544" href="#t544">544</a></span><span class="t">                    <span class="nam">permeability</span> <span class="op">=</span> <span class="nam">dict_translate</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -742,7 +742,7 @@
             <a class="nav" href="z_f63a35aa015aa6d7_util_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.17.0">coverage.py v7.17.0</a>,
-            created at 2026-10-30 17:01 +0000
+            created at 2026-11-02 15:03 +0000
         </p>
     </div>
 </footer>
