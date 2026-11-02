@@ -33,12 +33,14 @@ dependencies = [
 [dependency-groups]
 dev = [
     "matplotlib==3.11.2",
+    "mutmut>=3.8.1",
     "mypy>=2.4.1",
     "notebook==7.6.3",
     "pre-commit>=4.7.0",
     "pydoc-markdown==4.8.2",
     "pytest==9.1.1",
     "pytest-cov>=7.1.0",
+    "rasterio>=1.5.2",
     "ruff>=0.17.3",
 ]
 
@@ -78,8 +80,8 @@ disallow_untyped_defs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-# scgt and the GDAL bindings (osgeo) have no type information.
-module = ["scgt", "scgt.*", "osgeo", "osgeo.*"]
+# scgt, the GDAL bindings (osgeo) and rasterio have no type information.
+module = ["scgt", "scgt.*", "osgeo", "osgeo.*", "rasterio", "rasterio.*"]
 ignore_missing_imports = true
 
 [project.scripts]

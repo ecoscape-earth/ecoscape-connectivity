@@ -9,15 +9,15 @@ import numpy as np
 
 
 def dict_translate(
-    np_arr: np.ndarray, my_dict: dict[int, float], default_val: float = 0
+    np_array: np.ndarray, my_dict: dict[int, float], default_val: float = 0
 ) -> np.ndarray:
     """Translates the terrain type according to a dictionary mapping
     terrain type to values.
     """
-    u, inv = np.unique(np_arr, return_inverse=True)
-    return np.array([(my_dict.get(x, default_val)) for x in u])[inv].reshape(
-        np_arr.shape
-    )
+    unique_codes, codes = np.unique(np_array, return_inverse=True)
+    return np.array([(my_dict.get(code, default_val)) for code in unique_codes])[
+        codes
+    ].reshape(np_array.shape)
 
 
 def read_resistance_csv(fn: str) -> dict[int, float]:
