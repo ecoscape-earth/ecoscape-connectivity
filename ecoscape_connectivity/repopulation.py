@@ -142,7 +142,7 @@ def compute_connectivity(
         or type(permeability_fn) == GeoTiff
     )
 
-    if random_seed:
+    if random_seed is not None:
         torch.manual_seed(random_seed)
     if dispersal is None:
         assert num_gaps is not None, (

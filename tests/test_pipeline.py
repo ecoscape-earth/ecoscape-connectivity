@@ -137,11 +137,6 @@ def test_reproducible(tmp_path: Path, landscape: dict[str, Any]) -> None:
     assert not np.array_equal(connectivity_a, connectivity_c)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="compute_connectivity ignores random_seed=0 (if random_seed:)",
-)
 def test_reproducible_seed_zero(tmp_path: Path, landscape: dict[str, Any]) -> None:
     """Check that random_seed=0 gives identical output."""
     connectivity_a, _ = run(tmp_path, landscape, "a", random_seed=0)
