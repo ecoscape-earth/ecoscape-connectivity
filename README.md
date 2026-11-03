@@ -5,10 +5,10 @@
 | Name                                    |    Stmts |     Miss |   Branch |   BrPart |   Cover |   Missing |
 |---------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | ecoscape\_connectivity/\_\_init\_\_.py  |        4 |        0 |        0 |        0 |    100% |           |
-| ecoscape\_connectivity/distributions.py |       26 |        3 |        2 |        0 |     89% |     13-16 |
+| ecoscape\_connectivity/distributions.py |       27 |        3 |        2 |        0 |     90% |     13-16 |
 | ecoscape\_connectivity/repopulation.py  |      185 |       10 |       74 |       10 |     91% |148-151, 449-\>452, 532-534, 555-\>563, 560-\>563, 608-\>618, 613-\>618, 619-621, 623, 625 |
 | ecoscape\_connectivity/util.py          |       38 |        8 |        6 |        0 |     77% |25-30, 58-60 |
-| **TOTAL**                               |  **253** |   **21** |   **82** |   **10** | **89%** |           |
+| **TOTAL**                               |  **254** |   **21** |   **82** |   **10** | **89%** |           |
 
 
 ## Setup coverage badge
