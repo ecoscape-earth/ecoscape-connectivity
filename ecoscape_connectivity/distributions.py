@@ -1,7 +1,7 @@
 import math
 from collections.abc import Callable
 
-import numpy as np
+import torch
 
 """In this module, we define probability distributions used to sample the spread."""
 
@@ -85,10 +85,13 @@ def half_cauchy(median: float, truncation: int) -> Callable[[], int]:
         prev_cdf = cur_cdf
     # Drops the 0.
     cdf_dif = cdf_dif[1:]
-    probs = np.array(cdf_dif) * (1 / np.sum(cdf_dif))
+    # We sample with torch, so that torch.manual_seed makes the samples
+    # reproducible, like the rest of the simulation.
+    probs = torch.tensor(cdf_dif, dtype=torch.float64)
+    probs /= probs.sum()
 
     def f() -> int:
         """This is the function that does the actual sampling."""
-        return 1 + int(np.random.choice(range(truncation), p=probs))
+        return 1 + int(torch.multinomial(probs, 1).item())
 
     return f
