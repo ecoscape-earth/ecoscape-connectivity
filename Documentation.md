@@ -320,23 +320,13 @@ median, after such truncation, is equal to the input median.
 #### dict\_translate
 
 ```python
-def dict_translate(np_arr: np.ndarray,
+def dict_translate(np_array: np.ndarray,
                    my_dict: dict[int, float],
                    default_val: float = 0) -> np.ndarray
 ```
 
 Translates the terrain type according to a dictionary mapping
 terrain type to values.
-
-<a id="util.read_resistance_csv"></a>
-
-#### read\_resistance\_csv
-
-```python
-def read_resistance_csv(fn: str) -> dict[int, float]
-```
-
-Reads a dictionary of terrain to resistance in csv, producing a dictionary.
 
 <a id="util.read_transmission_csv"></a>
 

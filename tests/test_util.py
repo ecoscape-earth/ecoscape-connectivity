@@ -7,7 +7,11 @@ import numpy as np
 import pytest
 
 from ecoscape_connectivity import SingleIterator, read_transmission_csv
-from ecoscape_connectivity.util import dict_translate, rescale_resistance
+from ecoscape_connectivity.util import (
+    createdir_for_file,
+    dict_translate,
+    rescale_resistance,
+)
 
 
 def test_dict_translate() -> None:
@@ -60,6 +64,20 @@ def test_rescale_resistance() -> None:
         21: 1.0,
         42: 0.0,
     }
+
+
+def test_createdir_for_file(tmp_path: Path) -> None:
+    """Check that the file's folders are created, and that existing folders
+    are kept.
+    """
+    file_path = tmp_path / "outputs" / "2026" / "connectivity.tif"
+    createdir_for_file(str(file_path))
+    assert file_path.parent.is_dir()
+    # Only the folders are created, not the file.
+    assert not file_path.exists()
+    # Calling it again, when the folders exist, is not an error.
+    createdir_for_file(str(file_path))
+    assert file_path.parent.is_dir()
 
 
 @pytest.mark.parametrize("make_items", [list, iter], ids=["list", "iterator"])

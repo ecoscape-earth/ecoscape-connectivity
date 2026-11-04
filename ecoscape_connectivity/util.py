@@ -20,16 +20,6 @@ def dict_translate(
     ].reshape(np_array.shape)
 
 
-def read_resistance_csv(fn: str) -> dict[int, float]:
-    """Reads a dictionary of terrain to resistance in csv, producing a dictionary."""
-    d: dict[int, float] = {}
-    with open(fn) as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            d[int(row["map_code"])] = float(row["resistance"])
-    return d
-
-
 def read_transmission_csv(fn: str) -> dict[int, float]:
     """Reads a dictionary of terrain resistance or transmission in csv, producing a dictionary."""
     d: dict[int, float] = {}
