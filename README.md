@@ -66,7 +66,7 @@ def compute_connectivity(
     generate_flow_memory: bool = False,
     repopulation_only_in_habitat: bool = True,
     device: str | torch.device | None = None
-) -> tuple[GeoTiff, GeoTiff | None]
+) -> tuple[GeoTiff | None, GeoTiff | None]
 ```
 
 Function that computes the connectivity. This is the main function in the module.
@@ -147,8 +147,8 @@ automatically.  Valid values include: 'cpu', 'cuda', 'mps'.
 **Returns**:
 
 (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
-If in_memory is True, the caller should close the files with scgt's GeoTiff.close_memory_file()
-once they are not needed anymore.
+If in_memory is True, use the returned files in a with statement, which closes them
+once they are not needed anymore; flow is None if generate_flow_memory is False.
 
 <a id="repopulation.RandomPropagate"></a>
 
@@ -265,7 +265,7 @@ def analyze_geotiffs(
         output_grad_fn: str | None = None,
         report_progress: bool = False,
         in_memory: bool = False,
-        float_output: bool = False) -> tuple[GeoTiff, GeoTiff | None]
+        float_output: bool = False) -> tuple[GeoTiff | None, GeoTiff | None]
 ```
 
 Reads a geotiff (or better, a pair of habitat and terrain geotiffs),

@@ -12,7 +12,6 @@ from typing import Any
 import numpy as np
 import pytest
 import rasterio
-from rasterio.errors import RasterioIOError
 from rasterio.transform import from_origin
 
 import ecoscape_connectivity
@@ -100,9 +99,10 @@ def run(
         **landscape,
         **kwargs,
     }
-    ecoscape_connectivity.compute_connectivity(
+    # On disk, the results are only in the files.
+    assert ecoscape_connectivity.compute_connectivity(
         connectivity_fn=str(connectivity_path), flow_fn=str(flow_path), **arguments
-    )
+    ) == (None, None)
     return read_geotiff(connectivity_path), read_geotiff(flow_path)
 
 
@@ -249,13 +249,10 @@ def test_map_position(
             )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=RasterioIOError,
-    reason="analyze_geotiffs closes the memory files (with statement) before returning them",
-)
 def test_in_memory(landscape: dict[str, Any]) -> None:
-    """Check that in_memory=True returns open, readable outputs."""
+    """Check that in_memory=True returns open, readable outputs, with flow
+    when generate_flow_memory is True.
+    """
     connectivity, flow = ecoscape_connectivity.compute_connectivity(
         tile_size=40,
         border_size=BORDER_SIZE,
@@ -267,11 +264,8 @@ def test_in_memory(landscape: dict[str, Any]) -> None:
         generate_flow_memory=True,
         **landscape,
     )
-    try:
+    assert connectivity is not None
+    assert flow is not None
+    with connectivity, flow:
         assert (connectivity.dataset.read(1) > 0).any()
-        assert flow is not None
         assert (flow.dataset.read(1) > 0).any()
-    finally:
-        connectivity.close_memory_file()
-        if flow is not None:
-            flow.close_memory_file()

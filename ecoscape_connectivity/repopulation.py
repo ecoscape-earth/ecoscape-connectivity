@@ -51,7 +51,7 @@ def compute_connectivity(
     generate_flow_memory: bool = False,
     repopulation_only_in_habitat: bool = True,
     device: str | torch.device | None = None,
-) -> tuple[GeoTiff, GeoTiff | None]:
+) -> tuple[GeoTiff | None, GeoTiff | None]:
     """
     Function that computes the connectivity. This is the main function in the module.
     The outputs are encoded as follows:
@@ -125,8 +125,8 @@ def compute_connectivity(
     :param device: the device to be used for the computation. If None, then the device is chosen
         automatically.  Valid values include: 'cpu', 'cuda', 'mps'.
     :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
-        If in_memory is True, the caller should close the files with scgt's GeoTiff.close_memory_file()
-        once they are not needed anymore.
+        If in_memory is True, use the returned files in a with statement, which closes them
+        once they are not needed anymore; flow is None if generate_flow_memory is False.
     """
     assert habitat_fn is None or type(habitat_fn) == str or type(habitat_fn) == GeoTiff
     assert landcover_fn is not None or permeability_fn is not None
@@ -153,7 +153,9 @@ def compute_connectivity(
     analysis_function = analyze_tile_torch(
         device=device,
         seed_density=seed_density,
-        produce_gradient=flow_fn is not None,
+        produce_gradient=(
+            flow_fn is not None if not in_memory else generate_flow_memory
+        ),
         dispersal=dispersal,
         batch_size=batch_size,
         num_simulations=num_simulations,
@@ -427,7 +429,7 @@ def analyze_geotiffs(
     report_progress: bool = False,
     in_memory: bool = False,
     float_output: bool = False,
-) -> tuple[GeoTiff, GeoTiff | None]:
+) -> tuple[GeoTiff | None, GeoTiff | None]:
     """
     Reads a geotiff (or better, a pair of habitat and terrain geotiffs),
     iterating over the tiles, analyzing it with a specified analysis function,
@@ -645,28 +647,32 @@ def analyze_geotiffs(
         if report_progress:  # pragma: no mutate block
             print()
 
-    # Produce the outputs on disk.
+    # Produce the outputs, on disk or in memory.
     data_type = "float32" if float_output else "uint8"
     # Computes the border size of the output geotiff, according to whether we wish
     # to include the border in the output or not.
     output_border_size = border_size - padding_size
-    with (
+    connectivity_output = permeability_geotiff.crop_to_new_file(
+        output_border_size,
+        data_type=data_type,
+        filename=output_repop_fn,
+        in_memory=in_memory,
+    )
+    flow_output = (
         permeability_geotiff.crop_to_new_file(
             output_border_size,
             data_type=data_type,
-            filename=output_repop_fn,
+            filename=output_grad_fn,
             in_memory=in_memory,
-        ) as connectivity_output,
-        (
-            permeability_geotiff.crop_to_new_file(
-                output_border_size,
-                data_type=data_type,
-                filename=output_grad_fn,
-                in_memory=in_memory,
-            )
-            if compute_flow
-            else nullcontext()
-        ) as flow_output,
-    ):
+        )
+        if compute_flow
+        else None
+    )
+    if in_memory:
+        # Returned open; the caller closes them with a with statement.
         do_analysis(connectivity_output, flow_output)
-    return connectivity_output, flow_output
+        return connectivity_output, flow_output
+    # Closing a file on disk finishes writing it. The results are in the files.
+    with connectivity_output, flow_output or nullcontext():
+        do_analysis(connectivity_output, flow_output)
+    return None, None
