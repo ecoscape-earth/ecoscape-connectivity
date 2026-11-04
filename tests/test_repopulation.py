@@ -2,12 +2,20 @@
 
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 import torch
+from scgt import GeoTiff
 
-from ecoscape_connectivity import RandomPropagate, analyze_geotiffs, analyze_tile_torch
+from ecoscape_connectivity import (
+    RandomPropagate,
+    analyze_geotiffs,
+    analyze_tile_torch,
+    compute_connectivity,
+    repopulation,
+)
 from tests.conftest import Dump
 from tests.helpers import read_geotiff, write_geotiff
 
@@ -480,3 +488,88 @@ def test_tile_checks(tmp_path: Path) -> None:
             habitat_fn=ones_fn,
             permeability_fn=write_geotiff(tmp_path / "wider.tif", wider),
         )
+
+
+"""
+compute_connectivity and analyze_geotiffs accept each input as a file name or
+as an open scgt GeoTiff. Each test opens a GeoTiff from a file and checks
+that:
+- compute_connectivity, with analyze_geotiffs replaced by a mock, passes the
+  GeoTiff on unchanged;
+- analyze_geotiffs, with a fake analysis, gives the same output for the
+  GeoTiff as for its file name.
+"""
+
+
+def check_geotiff_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    argument: str,
+    path: str,
+    compute_inputs: dict[str, Any],
+    analyze_inputs: dict[str, Any],
+) -> None:
+    """Check that argument can be a GeoTiff opened from path.
+
+    compute_inputs and analyze_inputs are the other inputs that
+    compute_connectivity and analyze_geotiffs need.
+    """
+    mock_analyze_geotiffs = MagicMock()
+    monkeypatch.setattr(repopulation, "analyze_geotiffs", mock_analyze_geotiffs)
+    by_file_name = run_analyze_geotiffs(
+        tmp_path, Recorder(), **{argument: path}, **analyze_inputs
+    )
+    with GeoTiff.from_file(path) as geotiff:
+        compute_connectivity(
+            **{argument: geotiff}, **compute_inputs, dispersal=5, device="cpu"
+        )
+        assert mock_analyze_geotiffs.call_args.kwargs[argument] is geotiff
+        by_geotiff = run_analyze_geotiffs(
+            tmp_path, Recorder(), **{argument: geotiff}, **analyze_inputs
+        )
+    for output_by_file_name, output_by_geotiff in zip(
+        by_file_name, by_geotiff, strict=True
+    ):
+        np.testing.assert_array_equal(output_by_geotiff, output_by_file_name)
+    # The fake analysis returns the permeability as connectivity.
+    assert (by_file_name[0] > 0).any()
+
+
+def test_habitat_geotiff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that the habitat can be a GeoTiff."""
+    permeability_fn = write_geotiff(
+        tmp_path / "permeability.tif", pattern([0.25, 0.5, 1])
+    )
+    check_geotiff_input(
+        tmp_path,
+        monkeypatch,
+        "habitat_fn",
+        write_geotiff(tmp_path / "habitat.tif", pattern([0, 1, 1], dtype=np.uint8)),
+        compute_inputs={"permeability_fn": permeability_fn},
+        analyze_inputs={"permeability_fn": permeability_fn},
+    )
+
+
+def test_landcover_geotiff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that the landcover can be a GeoTiff."""
+    permeability_dict = {1: 0.25, 2: 0.5, 3: 1.0}
+    check_geotiff_input(
+        tmp_path,
+        monkeypatch,
+        "landcover_fn",
+        write_geotiff(tmp_path / "landcover.tif", pattern([1, 2, 3], dtype=np.uint8)),
+        compute_inputs={"permeability_dict": permeability_dict},
+        analyze_inputs={"permeability_dictionary": permeability_dict},
+    )
+
+
+def test_permeability_geotiff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that the permeability can be a GeoTiff."""
+    check_geotiff_input(
+        tmp_path,
+        monkeypatch,
+        "permeability_fn",
+        write_geotiff(tmp_path / "permeability.tif", pattern([0.25, 0.5, 1])),
+        compute_inputs={},
+        analyze_inputs={},
+    )
