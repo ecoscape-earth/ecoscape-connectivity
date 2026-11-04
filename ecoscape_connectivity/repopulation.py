@@ -506,7 +506,9 @@ def analyze_geotiffs(
         assert (
             habitat_geotiff.width == permeability_geotiff.width
             and habitat_geotiff.height == permeability_geotiff.height
-        ), "Habitat and permeability must have the same size."  # pragma: no mutate
+        ), (
+            "Habitat and permeability must have the same size."  # pragma: no mutate
+        )
 
     def do_analysis(conn_file: GeoTiff | None, flow_file: GeoTiff | None) -> None:
         # Reads the files.
