@@ -1,7 +1,7 @@
 """Tests for repopulation.py."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -14,6 +14,7 @@ from ecoscape_connectivity import (
     analyze_geotiffs,
     analyze_tile_torch,
     compute_connectivity,
+    constant,
     repopulation,
 )
 from tests.conftest import Dump
@@ -223,6 +224,148 @@ def test_tile_batch_size() -> None:
     analyze = analyze_tile_torch(device="cpu", num_simulations=10, batch_size=3)
     with pytest.raises(AssertionError, match="multiple"):
         analyze(np.ones((1, 10, 10)), np.ones((1, 10, 10)))
+
+
+class FakePropagate(RandomPropagate):
+    """Fake analysis class for analyze_tile_torch.
+
+    It records its arguments and the seeds it receives, and returns
+    habitat * terrain as the population for every seed, so the averaging
+    in analyze_tile_torch has a known result. instances lists every
+    FakePropagate created; tests clear it first.
+    """
+
+    instances: ClassVar[list["FakePropagate"]] = []
+
+    def __init__(
+        self,
+        habitat: torch.Tensor,
+        terrain: torch.Tensor,
+        num_spreads: int = 100,
+        spread_size: int = 1,
+        device: str | torch.device | None = None,
+    ) -> None:
+        super().__init__(
+            habitat,
+            terrain,
+            num_spreads=num_spreads,
+            spread_size=spread_size,
+            device=device,
+        )
+        self.arguments = {
+            "num_spreads": num_spreads,
+            "spread_size": spread_size,
+            "device": device,
+        }
+        self.seeds: list[torch.Tensor] = []
+        FakePropagate.instances.append(self)
+
+    def forward(self, seed: torch.Tensor) -> torch.Tensor:
+        self.seeds.append(seed)
+        # One copy per simulation in the batch. goodness is the terrain, so
+        # the gradient flows back to it.
+        return (self.habitat * self.goodness).repeat(seed.shape[0], 1, 1)
+
+
+def test_tile_spreads() -> None:
+    """Check the number and size of spreads for a dispersal of 7 pixels:
+    num_spreads = int(0.5 + dispersal / spread_size), spread_size =
+    gap_crossing + 1. A fixed dispersal makes one analysis class for all
+    batches; a callable one makes one per batch.
+    """
+    tile = np.ones((1, 10, 10))
+    # gap_crossing: (num_spreads, spread_size)
+    expected_spreads = {0: (7, 1), 1: (4, 2)}
+    for gap_crossing, (num_spreads, spread_size) in expected_spreads.items():
+        for dispersal, num_instances in ((7, 1), (constant(7), 2)):
+            FakePropagate.instances.clear()
+            analyze = analyze_tile_torch(
+                device="cpu",
+                analysis_class=FakePropagate,
+                dispersal=dispersal,
+                gap_crossing=gap_crossing,
+                num_simulations=2,
+            )
+            analyze(tile, tile)
+            assert len(FakePropagate.instances) == num_instances
+            for instance in FakePropagate.instances:
+                assert instance.arguments == {
+                    "num_spreads": num_spreads,
+                    "spread_size": spread_size,
+                    "device": "cpu",
+                }
+
+
+def test_tile_seed_probability() -> None:
+    """Check that each pixel is a seed with probability
+    seed_density / (1 + 2 * dispersal) ** 2: 4 / 49 here.
+
+    With 4 batches of 100 x 100 pixels, the count of seeds has a standard
+    deviation of about 110 around its mean of about 3,270; a 10% tolerance
+    is about 3 standard deviations. The formula's mutants change the count
+    by 20% or more.
+    """
+    FakePropagate.instances.clear()
+    torch.manual_seed(0)
+    tile = np.ones((1, 100, 100))
+    analyze = analyze_tile_torch(
+        device="cpu",
+        analysis_class=FakePropagate,
+        seed_density=4,
+        dispersal=3,
+        num_simulations=4,
+    )
+    analyze(tile, tile)
+    seeds = FakePropagate.instances[0].seeds
+    assert len(seeds) == 4
+    share = torch.cat(seeds).float().mean().item()
+    assert share == pytest.approx(4 / 49, rel=0.1)
+
+
+@pytest.mark.parametrize(
+    "dispersal",
+    [
+        pytest.param(
+            7,
+            id="fixed",
+            marks=pytest.mark.xfail(
+                strict=True,
+                raises=AssertionError,
+                reason="with a fixed dispersal, one repopulator serves all batches, "
+                "and its gradient accumulates across backward() calls, so flow "
+                "counts earlier batches again",
+            ),
+        ),
+        pytest.param(constant(7), id="callable"),
+    ],
+)
+def test_tile_averaging(dispersal: Any) -> None:
+    """Check that connectivity is the mean population over all simulations,
+    and flow the gradient of the population divided by num_simulations.
+
+    The fake population is habitat * terrain for every simulation, so
+    connectivity is habitat * terrain. Each batch's gradient of
+    sum(population) / num_batches with respect to the terrain, times the
+    terrain, is batch_size * habitat * terrain / num_batches; summed over
+    the batches and divided by num_simulations, flow is
+    habitat * terrain / num_batches.
+    """
+    FakePropagate.instances.clear()
+    rng = np.random.default_rng(1)
+    habitat = (rng.random((1, 10, 10)) < 0.5).astype(float)
+    terrain = rng.random((1, 10, 10))
+    analyze = analyze_tile_torch(
+        device="cpu",
+        analysis_class=FakePropagate,
+        dispersal=dispersal,
+        produce_gradient=True,
+        num_simulations=6,
+        batch_size=2,
+    )
+    connectivity, flow = analyze(habitat, terrain)
+    expected = torch.from_numpy(habitat * terrain).float()
+    torch.testing.assert_close(connectivity, expected)
+    torch.testing.assert_close(flow, expected / 3)
 
 
 """
