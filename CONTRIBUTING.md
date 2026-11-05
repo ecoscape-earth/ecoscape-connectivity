@@ -78,7 +78,7 @@ Coverage shows which lines the tests run, but not whether the tests check what t
 
     make mutation
 
-A full run takes about 30 minutes, so it isn't part of the checks on pull requests. Run it before a release (see [Before a release](#before-a-release)), and on the functions you are working on while writing tests. The results are kept in `mutants/`, so later runs only retest functions whose code changed; delete `mutants/` to start from scratch. To run only some mutants, give a pattern: `uv run mutmut run "ecoscape_connectivity.repopulation*"`. The score is also written as badge data to `mutants/mutation-score.json`.
+A full run takes about 15 minutes, so it isn't part of the checks on pull requests. Run it before a release (see [Before a release](#before-a-release)), and on the functions you are working on while writing tests. The results are kept in `mutants/`, so later runs only retest functions whose code changed; delete `mutants/` to start from scratch. To run only some mutants, give a pattern: `uv run mutmut run "ecoscape_connectivity.repopulation*"`. The score is also written as badge data to `mutants/mutation-score.json`.
 
 Settings are under `[tool.mutmut]` in `pyproject.toml`. Like coverage, it leaves out `main.py`. Mutants that mypy rejects aren't run.
 

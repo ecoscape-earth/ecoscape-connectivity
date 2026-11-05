@@ -1,7 +1,7 @@
 """Tests for repopulation.py."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -14,6 +14,7 @@ from ecoscape_connectivity import (
     analyze_geotiffs,
     analyze_tile_torch,
     compute_connectivity,
+    constant,
     repopulation,
 )
 from tests.conftest import Dump
@@ -121,6 +122,33 @@ def test_population_within_permeability(dump: Dump) -> None:
     assert (population <= permeability).all()
 
 
+def test_update_threshold(dump: Dump) -> None:
+    """Check that a pixel takes a later, higher value only if it rises by more
+    than update_threshold (0.05).
+
+    One row of 7 pixels, with a seed at each end:
+
+        seed  a  target  1  1  1  seed
+
+    The near seed reaches the target at step 2 with a * target = 0.5; the
+    far seed reaches it at step 4 with the target's own permeability. A
+    rise to 0.52 is ignored; a rise to 0.6 is kept. The random jitter
+    changes values by less than 0.1%.
+    """
+    habitat = torch.ones(1, 7)
+    seed = torch.zeros(1, 7)
+    seed[0, 0] = seed[0, 6] = 1
+    populations: dict[float, torch.Tensor] = {}
+    for target in (0.52, 0.6):
+        permeability = torch.ones(1, 7)
+        permeability[0, 1] = 0.5 / target
+        permeability[0, 2] = target
+        populations[target] = propagate(habitat, permeability, seed, 10)
+    dump(below_threshold=populations[0.52], above_threshold=populations[0.6])
+    assert populations[0.52][0, 2].item() == pytest.approx(0.5, abs=0.005)
+    assert populations[0.6][0, 2].item() == pytest.approx(0.6, abs=0.005)
+
+
 def analyze_tile(
     habitat: np.ndarray,
     permeability: np.ndarray,
@@ -223,6 +251,148 @@ def test_tile_batch_size() -> None:
     analyze = analyze_tile_torch(device="cpu", num_simulations=10, batch_size=3)
     with pytest.raises(AssertionError, match="multiple"):
         analyze(np.ones((1, 10, 10)), np.ones((1, 10, 10)))
+
+
+class FakePropagate(RandomPropagate):
+    """Fake analysis class for analyze_tile_torch.
+
+    It records its arguments and the seeds it receives, and returns
+    habitat * terrain as the population for every seed, so the averaging
+    in analyze_tile_torch has a known result. instances lists every
+    FakePropagate created; tests clear it first.
+    """
+
+    instances: ClassVar[list["FakePropagate"]] = []
+
+    def __init__(
+        self,
+        habitat: torch.Tensor,
+        terrain: torch.Tensor,
+        num_spreads: int = 100,
+        spread_size: int = 1,
+        device: str | torch.device | None = None,
+    ) -> None:
+        super().__init__(
+            habitat,
+            terrain,
+            num_spreads=num_spreads,
+            spread_size=spread_size,
+            device=device,
+        )
+        self.arguments = {
+            "num_spreads": num_spreads,
+            "spread_size": spread_size,
+            "device": device,
+        }
+        self.seeds: list[torch.Tensor] = []
+        FakePropagate.instances.append(self)
+
+    def forward(self, seed: torch.Tensor) -> torch.Tensor:
+        self.seeds.append(seed)
+        # One copy per simulation in the batch. goodness is the terrain, so
+        # the gradient flows back to it.
+        return (self.habitat * self.goodness).repeat(seed.shape[0], 1, 1)
+
+
+def test_tile_spreads() -> None:
+    """Check the number and size of spreads for a dispersal of 7 pixels:
+    num_spreads = int(0.5 + dispersal / spread_size), spread_size =
+    gap_crossing + 1. A fixed dispersal makes one analysis class for all
+    batches; a callable one makes one per batch.
+    """
+    tile = np.ones((1, 10, 10))
+    # gap_crossing: (num_spreads, spread_size)
+    expected_spreads = {0: (7, 1), 1: (4, 2)}
+    for gap_crossing, (num_spreads, spread_size) in expected_spreads.items():
+        for dispersal, num_instances in ((7, 1), (constant(7), 2)):
+            FakePropagate.instances.clear()
+            analyze = analyze_tile_torch(
+                device="cpu",
+                analysis_class=FakePropagate,
+                dispersal=dispersal,
+                gap_crossing=gap_crossing,
+                num_simulations=2,
+            )
+            analyze(tile, tile)
+            assert len(FakePropagate.instances) == num_instances
+            for instance in FakePropagate.instances:
+                assert instance.arguments == {
+                    "num_spreads": num_spreads,
+                    "spread_size": spread_size,
+                    "device": "cpu",
+                }
+
+
+def test_tile_seed_probability() -> None:
+    """Check that each pixel is a seed with probability
+    seed_density / (1 + 2 * dispersal) ** 2: 4 / 49 here.
+
+    With 4 batches of 100 x 100 pixels, the count of seeds has a standard
+    deviation of about 110 around its mean of about 3,270; a 10% tolerance
+    is about 3 standard deviations. The formula's mutants change the count
+    by 20% or more.
+    """
+    FakePropagate.instances.clear()
+    torch.manual_seed(0)
+    tile = np.ones((1, 100, 100))
+    analyze = analyze_tile_torch(
+        device="cpu",
+        analysis_class=FakePropagate,
+        seed_density=4,
+        dispersal=3,
+        num_simulations=4,
+    )
+    analyze(tile, tile)
+    seeds = FakePropagate.instances[0].seeds
+    assert len(seeds) == 4
+    share = torch.cat(seeds).float().mean().item()
+    assert share == pytest.approx(4 / 49, rel=0.1)
+
+
+@pytest.mark.parametrize(
+    "dispersal",
+    [
+        pytest.param(
+            7,
+            id="fixed",
+            marks=pytest.mark.xfail(
+                strict=True,
+                raises=AssertionError,
+                reason="with a fixed dispersal, one repopulator serves all batches, "
+                "and its gradient accumulates across backward() calls, so flow "
+                "counts earlier batches again",
+            ),
+        ),
+        pytest.param(constant(7), id="callable"),
+    ],
+)
+def test_tile_averaging(dispersal: Any) -> None:
+    """Check that connectivity is the mean population over all simulations,
+    and flow the gradient of the population divided by num_simulations.
+
+    The fake population is habitat * terrain for every simulation, so
+    connectivity is habitat * terrain. Each batch's gradient of
+    sum(population) / num_batches with respect to the terrain, times the
+    terrain, is batch_size * habitat * terrain / num_batches; summed over
+    the batches and divided by num_simulations, flow is
+    habitat * terrain / num_batches.
+    """
+    FakePropagate.instances.clear()
+    rng = np.random.default_rng(1)
+    habitat = (rng.random((1, 10, 10)) < 0.5).astype(float)
+    terrain = rng.random((1, 10, 10))
+    analyze = analyze_tile_torch(
+        device="cpu",
+        analysis_class=FakePropagate,
+        dispersal=dispersal,
+        produce_gradient=True,
+        num_simulations=6,
+        batch_size=2,
+    )
+    connectivity, flow = analyze(habitat, terrain)
+    expected = torch.from_numpy(habitat * terrain).float()
+    torch.testing.assert_close(connectivity, expected)
+    torch.testing.assert_close(flow, expected / 3)
 
 
 """
@@ -488,6 +658,112 @@ def test_tile_checks(tmp_path: Path) -> None:
             habitat_fn=ones_fn,
             permeability_fn=write_geotiff(tmp_path / "wider.tif", wider),
         )
+
+
+def test_flow_on_or_off(tmp_path: Path) -> None:
+    """Check that analyze_geotiffs writes flow only when generate_gradient is
+    True and output_grad_fn is given.
+    """
+    arguments: dict[str, Any] = {
+        "analysis_fn": Recorder(),
+        "permeability_fn": write_geotiff(
+            tmp_path / "permeability.tif", pattern([0.25, 0.5, 1])
+        ),
+        "tile_size": TILE_SIZE,
+        "border_size": BORDER_SIZE,
+    }
+
+    # With generate_gradient=False, the flow file isn't created, even when
+    # output_grad_fn names it.
+    flow_path = tmp_path / "flow.tif"
+    analyze_geotiffs(
+        **arguments,
+        output_repop_fn=str(tmp_path / "flow_off_connectivity.tif"),
+        output_grad_fn=str(flow_path),
+        generate_gradient=False,
+    )
+    assert not flow_path.exists()
+
+    # Without output_grad_fn, only connectivity is written.
+    connectivity_path = tmp_path / "no_flow_file_connectivity.tif"
+    assert analyze_geotiffs(**arguments, output_repop_fn=str(connectivity_path)) == (
+        None,
+        None,
+    )
+    assert (read_geotiff(connectivity_path) > 0).any()
+
+
+def test_compute_connectivity_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that compute_connectivity passes each setting on unchanged.
+
+    The test replaces analyze_tile_torch and analyze_geotiffs with mocks, so
+    no simulation runs. Every setting has a value other than its default, and
+    the mocks must receive exactly the expected arguments: a dropped
+    argument would otherwise fall back silently to the inner function's
+    default.
+    """
+    mock_analyze_tile_torch = MagicMock()
+    mock_analyze_geotiffs = MagicMock()
+    monkeypatch.setattr(repopulation, "analyze_tile_torch", mock_analyze_tile_torch)
+    monkeypatch.setattr(repopulation, "analyze_geotiffs", mock_analyze_geotiffs)
+    permeability_dict = {1: 0.5}
+    compute_connectivity(
+        habitat_fn="habitat.tif",
+        permeability_fn="permeability.tif",
+        permeability_scaling=0.5,
+        landcover_fn="landcover.tif",
+        permeability_dict=permeability_dict,
+        connectivity_fn="connectivity.tif",
+        flow_fn="flow.tif",
+        gap_crossing=2,
+        dispersal=7,
+        num_simulations=12,
+        seed_density=3,
+        tile_size=50,
+        border_size=8,
+        padding_size=4,
+        permeability_padding=0.25,
+        habitat_padding=0.75,
+        minimum_habitat=0.01,
+        float_output=False,
+        batch_size=3,
+        repopulation_only_in_habitat=False,
+        device="cpu",
+    )
+    mock_analyze_tile_torch.assert_called_once_with(
+        device="cpu",
+        seed_density=3,
+        # Flow is computed because flow_fn is given.
+        produce_gradient=True,
+        dispersal=7,
+        batch_size=3,
+        num_simulations=12,
+        gap_crossing=2,
+        repopulation_only_in_habitat=False,
+    )
+    mock_analyze_geotiffs.assert_called_once_with(
+        habitat_fn="habitat.tif",
+        landcover_fn="landcover.tif",
+        permeability_dictionary=permeability_dict,
+        permeability_fn="permeability.tif",
+        permeability_scaling=0.5,
+        analysis_fn=mock_analyze_tile_torch.return_value,
+        tile_size=50,
+        border_size=8,
+        padding_size=4,
+        permeability_padding=0.25,
+        habitat_padding=0.75,
+        generate_gradient=True,
+        minimum_habitat=0.01,
+        output_repop_fn="connectivity.tif",
+        output_grad_fn="flow.tif",
+        float_output=False,
+        in_memory=False,
+    )
+
+    # Without dispersal, it is (1 + gap_crossing) * num_gaps pixels.
+    compute_connectivity(permeability_fn="permeability.tif", gap_crossing=2, num_gaps=3)
+    assert mock_analyze_tile_torch.call_args.kwargs["dispersal"] == 9
 
 
 """

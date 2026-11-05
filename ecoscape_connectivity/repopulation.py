@@ -111,7 +111,9 @@ def compute_connectivity(
         computation fit into the GPU memory.
     :param minimum_habitat: if a tile has a fraction of habitat smaller than this, it is skipped.
         This saves time in countries where the habitat is only on a small portion.
-    :param random_seed: random seed, if desired.
+    :param random_seed: seed for PyTorch's random number generator, which every random choice
+        in the simulation uses, including half_cauchy dispersal. The same inputs and seed give
+        identical results on the same device with the same PyTorch version.
     :param in_memory: whether the connectivity and flow should be saved in memory only.
         If so, then the files are not saved to disk. Because such files would be deleted on close,
         the open memory files will be returned as (repop_file, grad_file). Note that the parameters
