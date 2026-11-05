@@ -523,6 +523,79 @@ def test_flow_on_or_off(tmp_path: Path) -> None:
     assert (read_geotiff(connectivity_path) > 0).any()
 
 
+def test_compute_connectivity_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that compute_connectivity passes each setting on unchanged.
+
+    The test replaces analyze_tile_torch and analyze_geotiffs with mocks, so
+    no simulation runs. Every setting has a value other than its default, and
+    the mocks must receive exactly the expected arguments: a dropped
+    argument would otherwise fall back silently to the inner function's
+    default.
+    """
+    mock_analyze_tile_torch = MagicMock()
+    mock_analyze_geotiffs = MagicMock()
+    monkeypatch.setattr(repopulation, "analyze_tile_torch", mock_analyze_tile_torch)
+    monkeypatch.setattr(repopulation, "analyze_geotiffs", mock_analyze_geotiffs)
+    permeability_dict = {1: 0.5}
+    compute_connectivity(
+        habitat_fn="habitat.tif",
+        permeability_fn="permeability.tif",
+        permeability_scaling=0.5,
+        landcover_fn="landcover.tif",
+        permeability_dict=permeability_dict,
+        connectivity_fn="connectivity.tif",
+        flow_fn="flow.tif",
+        gap_crossing=2,
+        dispersal=7,
+        num_simulations=12,
+        seed_density=3,
+        tile_size=50,
+        border_size=8,
+        padding_size=4,
+        permeability_padding=0.25,
+        habitat_padding=0.75,
+        minimum_habitat=0.01,
+        float_output=False,
+        batch_size=3,
+        repopulation_only_in_habitat=False,
+        device="cpu",
+    )
+    mock_analyze_tile_torch.assert_called_once_with(
+        device="cpu",
+        seed_density=3,
+        # Flow is computed because flow_fn is given.
+        produce_gradient=True,
+        dispersal=7,
+        batch_size=3,
+        num_simulations=12,
+        gap_crossing=2,
+        repopulation_only_in_habitat=False,
+    )
+    mock_analyze_geotiffs.assert_called_once_with(
+        habitat_fn="habitat.tif",
+        landcover_fn="landcover.tif",
+        permeability_dictionary=permeability_dict,
+        permeability_fn="permeability.tif",
+        permeability_scaling=0.5,
+        analysis_fn=mock_analyze_tile_torch.return_value,
+        tile_size=50,
+        border_size=8,
+        padding_size=4,
+        permeability_padding=0.25,
+        habitat_padding=0.75,
+        generate_gradient=True,
+        minimum_habitat=0.01,
+        output_repop_fn="connectivity.tif",
+        output_grad_fn="flow.tif",
+        float_output=False,
+        in_memory=False,
+    )
+
+    # Without dispersal, it is (1 + gap_crossing) * num_gaps pixels.
+    compute_connectivity(permeability_fn="permeability.tif", gap_crossing=2, num_gaps=3)
+    assert mock_analyze_tile_torch.call_args.kwargs["dispersal"] == 9
+
+
 """
 compute_connectivity and analyze_geotiffs accept each input as a file name or
 as an open scgt GeoTiff. Each test opens a GeoTiff from a file and checks
