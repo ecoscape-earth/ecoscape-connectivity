@@ -490,6 +490,39 @@ def test_tile_checks(tmp_path: Path) -> None:
         )
 
 
+def test_flow_on_or_off(tmp_path: Path) -> None:
+    """Check that analyze_geotiffs writes flow only when generate_gradient is
+    True and output_grad_fn is given.
+    """
+    arguments: dict[str, Any] = {
+        "analysis_fn": Recorder(),
+        "permeability_fn": write_geotiff(
+            tmp_path / "permeability.tif", pattern([0.25, 0.5, 1])
+        ),
+        "tile_size": TILE_SIZE,
+        "border_size": BORDER_SIZE,
+    }
+
+    # With generate_gradient=False, the flow file isn't created, even when
+    # output_grad_fn names it.
+    flow_path = tmp_path / "flow.tif"
+    analyze_geotiffs(
+        **arguments,
+        output_repop_fn=str(tmp_path / "flow_off_connectivity.tif"),
+        output_grad_fn=str(flow_path),
+        generate_gradient=False,
+    )
+    assert not flow_path.exists()
+
+    # Without output_grad_fn, only connectivity is written.
+    connectivity_path = tmp_path / "no_flow_file_connectivity.tif"
+    assert analyze_geotiffs(**arguments, output_repop_fn=str(connectivity_path)) == (
+        None,
+        None,
+    )
+    assert (read_geotiff(connectivity_path) > 0).any()
+
+
 """
 compute_connectivity and analyze_geotiffs accept each input as a file name or
 as an open scgt GeoTiff. Each test opens a GeoTiff from a file and checks
