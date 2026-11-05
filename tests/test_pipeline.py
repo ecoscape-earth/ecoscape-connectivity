@@ -12,19 +12,22 @@ from typing import Any
 import numpy as np
 import pytest
 import rasterio
-from rasterio.errors import RasterioIOError
 from rasterio.transform import from_origin
 
 import ecoscape_connectivity
 from ecoscape_connectivity import half_cauchy
 from tests.conftest import Dump
+from tests.helpers import (
+    CRS,
+    ORIGIN_X,
+    ORIGIN_Y,
+    PIXEL_SIZE,
+    read_geotiff,
+    write_geotiff,
+)
 
-CRS = "EPSG:32610"
 HEIGHT, WIDTH = 150, 170
 BORDER_SIZE = 10
-PIXEL_SIZE = 300
-# Upper left corner of the input, in meters (UTM zone 10N).
-ORIGIN_X, ORIGIN_Y = 500_000, 4_100_000
 # Terrain codes: 1 is open land, 2 is under the habitat, 3 is hard to cross,
 # and 9 is missing from the dictionary, so its permeability is 0.
 PERMEABILITY = {1: 0.95, 2: 1.0, 3: 0.2}
@@ -55,29 +58,6 @@ def make_terrain(habitat: np.ndarray) -> np.ndarray:
     terrain[:, 100:110] = 3
     terrain[MISSING_CODE_ROWS, :] = 9
     return terrain
-
-
-def write_geotiff(path: Path, array: np.ndarray) -> str:
-    """Write a one-band GeoTIFF with a known position on the map."""
-    with rasterio.open(
-        path,
-        "w",
-        driver="GTiff",
-        height=array.shape[0],
-        width=array.shape[1],
-        count=1,
-        dtype=array.dtype,
-        crs=CRS,
-        transform=from_origin(ORIGIN_X, ORIGIN_Y, PIXEL_SIZE, PIXEL_SIZE),
-    ) as dataset:
-        dataset.write(array, 1)
-    return str(path)
-
-
-def read_geotiff(path: Path) -> np.ndarray:
-    """Return the first band of a GeoTIFF."""
-    with rasterio.open(path) as dataset:
-        return dataset.read(1)
 
 
 def to_output(array: np.ndarray, padding_size: int = 0) -> np.ndarray:
@@ -119,9 +99,10 @@ def run(
         **landscape,
         **kwargs,
     }
-    ecoscape_connectivity.compute_connectivity(
+    # On disk, the results are only in the files.
+    assert ecoscape_connectivity.compute_connectivity(
         connectivity_fn=str(connectivity_path), flow_fn=str(flow_path), **arguments
-    )
+    ) == (None, None)
     return read_geotiff(connectivity_path), read_geotiff(flow_path)
 
 
@@ -268,13 +249,10 @@ def test_map_position(
             )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=RasterioIOError,
-    reason="analyze_geotiffs closes the memory files (with statement) before returning them",
-)
 def test_in_memory(landscape: dict[str, Any]) -> None:
-    """Check that in_memory=True returns open, readable outputs."""
+    """Check that in_memory=True returns open, readable outputs, with flow
+    when generate_flow_memory is True.
+    """
     connectivity, flow = ecoscape_connectivity.compute_connectivity(
         tile_size=40,
         border_size=BORDER_SIZE,
@@ -286,11 +264,8 @@ def test_in_memory(landscape: dict[str, Any]) -> None:
         generate_flow_memory=True,
         **landscape,
     )
-    try:
+    assert connectivity is not None
+    assert flow is not None
+    with connectivity, flow:
         assert (connectivity.dataset.read(1) > 0).any()
-        assert flow is not None
         assert (flow.dataset.read(1) > 0).any()
-    finally:
-        connectivity.close_memory_file()
-        if flow is not None:
-            flow.close_memory_file()

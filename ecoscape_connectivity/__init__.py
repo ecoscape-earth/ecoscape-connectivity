@@ -7,7 +7,6 @@ from .repopulation import (
 )
 from .util import (
     SingleIterator,
-    read_resistance_csv,
     read_transmission_csv,
 )
 
@@ -19,6 +18,5 @@ __all__ = [
     "compute_connectivity",
     "constant",
     "half_cauchy",
-    "read_resistance_csv",
     "read_transmission_csv",
 ]

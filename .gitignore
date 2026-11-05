@@ -17,3 +17,4 @@ tests/output/
 coverage.xml
 htmlcov/
 .mypy_cache/
+mutants/

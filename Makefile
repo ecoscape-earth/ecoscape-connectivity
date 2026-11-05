@@ -1,4 +1,4 @@
-.PHONY: coverage docs install lint test
+.PHONY: coverage docs install lint mutation test
 
 # Runs the tests with coverage, then prints a report to the terminal, writes
 # an HTML report to htmlcov/index.html, and writes coverage.xml for the
@@ -24,6 +24,18 @@ lint:
 	uv run ruff check --fix .
 	uv run ruff format .
 	uv run mypy
+
+# Runs mutation testing: makes small changes to the code and reports the ones
+# no test catches. Results are kept in mutants/, so later runs only retest
+# functions whose code changed; browse them with `uv run mutmut browse`.
+# Writes the score as Shields badge JSON to mutants/mutation-score.json.
+# Settings are in pyproject.toml. On macOS, PyTorch aborts in mutmut's forked
+# test processes unless OBJC_DISABLE_INITIALIZE_FORK_SAFETY is set; it has no
+# effect elsewhere.
+mutation:
+	OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES uv run mutmut run
+	uv run mutmut export-cicd-stats
+	uv run mutmut badge --output mutants/mutation-score.json
 
 test:
 	uv run pytest tests
