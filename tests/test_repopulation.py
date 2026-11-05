@@ -122,6 +122,33 @@ def test_population_within_permeability(dump: Dump) -> None:
     assert (population <= permeability).all()
 
 
+def test_update_threshold(dump: Dump) -> None:
+    """Check that a pixel takes a later, higher value only if it rises by more
+    than update_threshold (0.05).
+
+    One row of 7 pixels, with a seed at each end:
+
+        seed  a  target  1  1  1  seed
+
+    The near seed reaches the target at step 2 with a * target = 0.5; the
+    far seed reaches it at step 4 with the target's own permeability. A
+    rise to 0.52 is ignored; a rise to 0.6 is kept. The random jitter
+    changes values by less than 0.1%.
+    """
+    habitat = torch.ones(1, 7)
+    seed = torch.zeros(1, 7)
+    seed[0, 0] = seed[0, 6] = 1
+    populations: dict[float, torch.Tensor] = {}
+    for target in (0.52, 0.6):
+        permeability = torch.ones(1, 7)
+        permeability[0, 1] = 0.5 / target
+        permeability[0, 2] = target
+        populations[target] = propagate(habitat, permeability, seed, 10)
+    dump(below_threshold=populations[0.52], above_threshold=populations[0.6])
+    assert populations[0.52][0, 2].item() == pytest.approx(0.5, abs=0.005)
+    assert populations[0.6][0, 2].item() == pytest.approx(0.6, abs=0.005)
+
+
 def analyze_tile(
     habitat: np.ndarray,
     permeability: np.ndarray,
