@@ -78,7 +78,7 @@ Coverage shows which lines the tests run, but not whether the tests check what t
 
     make mutation
 
-A full run takes about 15 minutes, so it isn't part of the checks on pull requests. Run it before a release (see [Before a release](#before-a-release)), and on the functions you are working on while writing tests. The results are kept in `mutants/`, so later runs only retest functions whose code changed; delete `mutants/` to start from scratch. To run only some mutants, give a pattern: `uv run mutmut run "ecoscape_connectivity.repopulation*"`. The score is also written as badge data to `mutants/mutation-score.json`.
+A full run takes about 15 minutes, so it isn't part of the checks on pull requests. Run it before a release (see [Before a release](#before-a-release)), and on the functions you are working on while writing tests. The results are kept in `mutants/`, so later runs only retest functions whose code changed; delete `mutants/` to start from scratch. To run only some mutants, give a pattern: `uv run mutmut run "ecoscape_connectivity.repopulation*"`.
 
 Settings are under `[tool.mutmut]` in `pyproject.toml`. Like coverage, it leaves out `main.py`. Mutants that mypy rejects aren't run.
 
@@ -112,7 +112,7 @@ A survivor is one of three things:
 - **An equivalent mutant**: the change doesn't alter behavior, so no test can catch it. For example, `x <= 0` and `x < 0` behave the same when `x` is never exactly `0`. Leave it, or turn mutation off for that line with a comment saying why.
 - **Code whose exact output doesn't matter**, such as message wording or drawing: turn mutation off.
 
-The score is the share of mutants caught. Unlike coverage, 100% isn't the goal: random simulations and equivalent mutants leave some survivors. Use the list of survivors to find weak tests, not the number.
+The score is the share of the mutants that ran that the tests catch: killed and timed out, out of all mutants except those mypy rejects and those skipped. `make mutation-badge` computes it from the last run and writes it to `badges/mutation-score.json`, which the README's badge shows. Unlike coverage, 100% isn't the goal: random simulations and equivalent mutants leave some survivors. Use the list of survivors to find weak tests, not the number.
 
 ### Turning off mutation
 
@@ -150,9 +150,15 @@ Run mutation testing on the whole package, starting from scratch:
     rm -rf mutants
     make mutation
 
-Starting from scratch matters: mutmut only retests functions whose code changed, so a survivor from an earlier run stays a survivor even after a test that kills it is added. A full run takes about 30 minutes on a laptop, which is why it runs before a release rather than on every pull request.
+Starting from scratch matters: mutmut only retests functions whose code changed, so a survivor from an earlier run stays a survivor even after a test that kills it is added. A full run takes about 15 minutes on a laptop, which is why it runs before a release rather than on every pull request.
 
-Then go through the survivors in `uv run mutmut browse`, starting with functions changed since the last release (`git diff <last release tag> -- ecoscape_connectivity/` lists them). Each survivor is a missing test, an equivalent mutant, or code not worth testing (see [Reading the results](#reading-the-results)). A release doesn't need zero survivors, but every survivor in changed code should be understood: write the missing tests, or turn mutation off with a comment saying why. Note the score in `mutants/mutation-score.json` and the number of survivors in the release pull request, so the next release can compare.
+Then go through the survivors in `uv run mutmut browse`, starting with functions changed since the last release (`git diff <last release tag> -- ecoscape_connectivity/` lists them). Each survivor is a missing test, an equivalent mutant, or code not worth testing (see [Reading the results](#reading-the-results)). A release doesn't need zero survivors, but every survivor in changed code should be understood: write the missing tests, or turn mutation off with a comment saying why.
+
+Then update the badge with the release's score, and commit `badges/mutation-score.json` with the release:
+
+    make mutation-badge
+
+Note the score and the number of survivors in the release pull request, so the next release can compare.
 
 ### Publishing
 

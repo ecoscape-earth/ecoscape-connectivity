@@ -75,7 +75,7 @@ show_missing = true
 fail_under = 95
 
 [tool.mypy]
-files = ["ecoscape_connectivity", "tests"]
+files = ["ecoscape_connectivity", "scripts", "tests"]
 # Every function must have type annotations.
 disallow_untyped_defs = true
 warn_unused_ignores = true
