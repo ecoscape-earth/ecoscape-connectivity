@@ -145,20 +145,15 @@ This regenerates `Documentation.md` from the docstrings and `README.md` from `RE
 
 ### Before a release
 
-Run mutation testing on the whole package, starting from scratch:
+Run the release checks:
 
-    rm -rf mutants
-    make mutation
+    make release-prep
 
-Starting from scratch matters: mutmut only retests functions whose code changed, so a survivor from an earlier run stays a survivor even after a test that kills it is added. A full run takes about 15 minutes on a laptop, which is why it runs before a release rather than on every pull request.
+This deletes `mutants/`, runs mutation testing on the whole package from scratch (`make mutation`), and updates the badge in `badges/mutation-score.json` with the score (`make mutation-badge`). Starting from scratch matters: mutmut only retests functions whose code changed, so a survivor from an earlier run stays a survivor even after a test that kills it is added. A full run takes about 15 minutes on a laptop, which is why it runs before a release rather than on every pull request.
 
-Then go through the survivors in `uv run mutmut browse`, starting with functions changed since the last release (`git diff <last release tag> -- ecoscape_connectivity/` lists them). Each survivor is a missing test, an equivalent mutant, or code not worth testing (see [Reading the results](#reading-the-results)). A release doesn't need zero survivors, but every survivor in changed code should be understood: write the missing tests, or turn mutation off with a comment saying why.
+Then go through the survivors in `uv run mutmut browse`, starting with functions changed since the last release (`git diff <last release tag> -- ecoscape_connectivity/` lists them). Each survivor is a missing test, an equivalent mutant, or code not worth testing (see [Reading the results](#reading-the-results)). A release doesn't need zero survivors, but every survivor in changed code should be understood: write the missing tests, or turn mutation off with a comment saying why. If you change the tests or the code, run `make release-prep` again, so the badge shows the final score.
 
-Then update the badge with the release's score, and commit `badges/mutation-score.json` with the release:
-
-    make mutation-badge
-
-Note the score and the number of survivors in the release pull request, so the next release can compare.
+Commit `badges/mutation-score.json` with the release, and note the score and the number of survivors in the release pull request, so the next release can compare.
 
 ### Publishing
 

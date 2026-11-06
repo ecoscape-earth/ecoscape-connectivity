@@ -1,4 +1,4 @@
-.PHONY: coverage docs install lint mutation mutation-badge test
+.PHONY: coverage docs install lint mutation mutation-badge release-prep test
 
 # Runs the tests with coverage, then prints a report to the terminal, writes
 # an HTML report to htmlcov/index.html, and writes coverage.xml for the
@@ -39,6 +39,15 @@ mutation:
 # the tests catch. Run it before a release, and commit the badge.
 mutation-badge:
 	uv run python scripts/mutation_badge.py
+
+# Runs the checks before a release: mutation testing from scratch (mutmut
+# only retests functions whose code changed, so old results can be stale),
+# then the badge. Review the survivors afterward; see CONTRIBUTING.md.
+release-prep:
+	rm -rf mutants
+	$(MAKE) mutation
+	$(MAKE) mutation-badge
+	$(MAKE) docs
 
 test:
 	uv run pytest tests
