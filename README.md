@@ -6,9 +6,9 @@
 |---------------------------------------- | -------: | -------: | -------: | -------: | ------: | --------: |
 | ecoscape\_connectivity/\_\_init\_\_.py  |        4 |        0 |        0 |        0 |    100% |           |
 | ecoscape\_connectivity/distributions.py |       27 |        0 |        2 |        0 |    100% |           |
-| ecoscape\_connectivity/repopulation.py  |      190 |        8 |       76 |        8 |     92% |470-\>473, 556-558, 579-\>587, 584-\>587, 632-\>643, 644-646, 648, 650 |
+| ecoscape\_connectivity/repopulation.py  |      190 |        6 |       76 |        5 |     94% |470-\>473, 556-558, 579-\>587, 632-\>643, 644-646 |
 | ecoscape\_connectivity/util.py          |       31 |        0 |        4 |        0 |    100% |           |
-| **TOTAL**                               |  **252** |    **8** |   **82** |    **8** | **94%** |           |
+| **TOTAL**                               |  **252** |    **6** |   **82** |    **5** | **96%** |           |
 
 
 ## Setup coverage badge
