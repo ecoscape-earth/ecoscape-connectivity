@@ -70,8 +70,9 @@ relative_files = true
 
 [tool.coverage.report]
 show_missing = true
-# Starting coverage was 82%. Raise this as tests are added.
-fail_under = 80
+# Just below the current total (96% in November 2026). Raise it as tests
+# are added, so coverage can't quietly drop.
+fail_under = 95
 
 [tool.mypy]
 files = ["ecoscape_connectivity", "tests"]

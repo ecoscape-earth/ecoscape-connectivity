@@ -2,6 +2,8 @@
 Edit README-prototype.md or the docstrings, then run `make docs`. -->
 # EcoScape Connectivity Computation
 
+[![Coverage badge](https://raw.githubusercontent.com/ecoscape-earth/ecoscape-connectivity/python-coverage-comment-action-data/badge.svg)](https://htmlpreview.github.io/?https://github.com/ecoscape-earth/ecoscape-connectivity/blob/python-coverage-comment-action-data/htmlcov/index.html)
+
 This package implements the computation of connectivity and flow according to the EcoScape algorithm.
 
 ## Authors
@@ -130,7 +132,9 @@ The padding cannot be greater than the border size.
 computation fit into the GPU memory.
 - `minimum_habitat`: if a tile has a fraction of habitat smaller than this, it is skipped.
 This saves time in countries where the habitat is only on a small portion.
-- `random_seed`: random seed, if desired.
+- `random_seed`: seed for PyTorch's random number generator, which every random choice
+in the simulation uses, including half_cauchy dispersal. The same inputs and seed give
+identical results on the same device with the same PyTorch version.
 - `in_memory`: whether the connectivity and flow should be saved in memory only.
 If so, then the files are not saved to disk. Because such files would be deleted on close,
 the open memory files will be returned as (repop_file, grad_file). Note that the parameters

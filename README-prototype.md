@@ -2,6 +2,8 @@
 Edit README-prototype.md or the docstrings, then run `make docs`. -->
 # EcoScape Connectivity Computation
 
+[![Coverage badge](https://raw.githubusercontent.com/ecoscape-earth/ecoscape-connectivity/python-coverage-comment-action-data/badge.svg)](https://htmlpreview.github.io/?https://github.com/ecoscape-earth/ecoscape-connectivity/blob/python-coverage-comment-action-data/htmlcov/index.html)
+
 This package implements the computation of connectivity and flow according to the EcoScape algorithm.
 
 ## Authors
