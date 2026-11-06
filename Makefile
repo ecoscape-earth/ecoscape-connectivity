@@ -1,4 +1,4 @@
-.PHONY: coverage docs install lint mutation test
+.PHONY: coverage docs install lint mutation mutation-badge release-prep test
 
 # Runs the tests with coverage, then prints a report to the terminal, writes
 # an HTML report to htmlcov/index.html, and writes coverage.xml for the
@@ -28,14 +28,26 @@ lint:
 # Runs mutation testing: makes small changes to the code and reports the ones
 # no test catches. Results are kept in mutants/, so later runs only retest
 # functions whose code changed; browse them with `uv run mutmut browse`.
-# Writes the score as Shields badge JSON to mutants/mutation-score.json.
 # Settings are in pyproject.toml. On macOS, PyTorch aborts in mutmut's forked
 # test processes unless OBJC_DISABLE_INITIALIZE_FORK_SAFETY is set; it has no
 # effect elsewhere.
 mutation:
 	OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES uv run mutmut run
-	uv run mutmut export-cicd-stats
-	uv run mutmut badge --output mutants/mutation-score.json
+
+# Writes the mutation testing badge to badges/mutation-score.json from the
+# results of the last `make mutation`: the share of the mutants that ran that
+# the tests catch. Run it before a release, and commit the badge.
+mutation-badge:
+	uv run python scripts/mutation_badge.py
+
+# Runs the checks before a release: mutation testing from scratch (mutmut
+# only retests functions whose code changed, so old results can be stale),
+# then the badge. Review the survivors afterward; see CONTRIBUTING.md.
+release-prep:
+	rm -rf mutants
+	$(MAKE) mutation
+	$(MAKE) mutation-badge
+	$(MAKE) docs
 
 test:
 	uv run pytest tests

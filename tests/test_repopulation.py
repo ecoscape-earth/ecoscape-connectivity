@@ -601,12 +601,14 @@ def test_output_conversion(
         np.testing.assert_array_equal(flow, np.floor(np.clip(expected_flow, 0, 255)))
 
 
-def test_tile_checks(tmp_path: Path) -> None:
+def test_tile_checks(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Check which tiles are analyzed, and that the inputs' sizes must match.
 
     - A tile whose mean habitat equals minimum_habitat exactly is analyzed:
       only a mean below it skips the tile.
-    - Low permeability skips a tile only when there is no habitat.
+    - Low permeability skips a tile only when there is no habitat, with or
+      without a flow output.
+    - report_progress prints the number of each analyzed tile.
     - A habitat and permeability of different widths fail.
     """
     ones = np.ones((HEIGHT, WIDTH), dtype=np.float32)
@@ -640,6 +642,20 @@ def test_tile_checks(tmp_path: Path) -> None:
         tmp_path, without_habitat, permeability_fn=left_closed_fn, minimum_habitat=0.25
     )
     assert len(without_habitat.tiles) == 4
+    # The same without a flow output, reporting progress: tiles are numbered
+    # by row, so the skipped first column is tiles 0 and 3.
+    without_flow = Recorder()
+    analyze_geotiffs(
+        permeability_fn=left_closed_fn,
+        analysis_fn=without_flow,
+        tile_size=TILE_SIZE,
+        border_size=BORDER_SIZE,
+        minimum_habitat=0.25,
+        output_repop_fn=str(tmp_path / "without_flow_connectivity.tif"),
+        report_progress=True,
+    )
+    assert len(without_flow.tiles) == 4
+    assert capsys.readouterr().out == "1 2 4 5 \n"
     with_habitat = Recorder()
     run_analyze_geotiffs(
         tmp_path,
