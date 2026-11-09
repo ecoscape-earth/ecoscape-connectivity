@@ -667,7 +667,7 @@ def test_tile_checks(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None
     assert len(with_habitat.tiles) == 6
 
     wider = np.ones((HEIGHT, WIDTH + 1), dtype=np.float32)
-    with pytest.raises(AssertionError, match="same size"):
+    with pytest.raises(ValueError, match="same size"):
         run_analyze_geotiffs(
             tmp_path,
             Recorder(),

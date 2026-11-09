@@ -21,15 +21,52 @@ def dict_translate(
 
 
 def read_transmission_csv(fn: str) -> dict[int, float]:
-    """Reads a dictionary of terrain resistance or transmission in csv, producing a dictionary."""
+    """Reads a dictionary of terrain resistance or transmission in csv, producing a dictionary.
+
+    The CSV needs a map_code column with the landcover codes, and either a
+    transmission column with the permeability of each code, or a resistance
+    column, which is converted to a permeability of 1 - resistance.
+
+    :param fn: file name of the CSV.
+    :return: the permeability of each landcover code.
+    :raises FileNotFoundError: if there is no file at fn.
+    :raises ValueError: if the CSV lacks the columns above, or a value isn't a number.
+    """
+    if not os.path.isfile(fn):
+        raise FileNotFoundError(
+            f"Permeability CSV file not found: {os.path.abspath(fn)}. Check the "  # pragma: no mutate
+            "path for typos. Relative paths start from the folder Python runs "  # pragma: no mutate
+            f"in, {os.getcwd()}."  # pragma: no mutate
+        )
     d: dict[int, float] = {}
-    with open(fn) as f:
+    # utf-8-sig skips the byte order mark that Excel writes at the start of a
+    # CSV; otherwise the first column would be named "\ufeffmap_code".
+    with open(fn, encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
+        columns = list(reader.fieldnames or [])
+        if "map_code" not in columns or (
+            "resistance" not in columns and "transmission" not in columns
+        ):
+            raise ValueError(
+                f"The permeability CSV {fn} needs a map_code column, and a "  # pragma: no mutate
+                "transmission or resistance column, but its columns are: "  # pragma: no mutate
+                f"{', '.join(columns) or 'none, the file is empty'}. Check the "  # pragma: no mutate
+                "column names in the first row."  # pragma: no mutate
+            )
+        value_column = "resistance" if "resistance" in columns else "transmission"
         for row in reader:
-            if "resistance" in row:
-                d[int(row["map_code"])] = 1.0 - float(row["resistance"])
-            else:
-                d[int(row["map_code"])] = float(row["transmission"])
+            try:
+                code = int(row["map_code"])
+                value = float(row[value_column])
+            # A missing value is None, for which int() and float() raise TypeError.
+            except (TypeError, ValueError) as error:
+                raise ValueError(
+                    f"Line {reader.line_num} of the permeability CSV {fn} has "  # pragma: no mutate
+                    f"map_code {row['map_code']!r} and {value_column} "  # pragma: no mutate
+                    f"{row[value_column]!r}, but map_code must be a whole number "  # pragma: no mutate
+                    f"and {value_column} a number."  # pragma: no mutate
+                ) from error
+            d[code] = 1.0 - value if value_column == "resistance" else value
     return d
 
 
