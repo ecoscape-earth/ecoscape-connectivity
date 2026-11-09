@@ -1,4 +1,5 @@
 # Standard imports
+import os
 from collections.abc import Callable, Iterator
 from contextlib import nullcontext
 from typing import Any
@@ -129,20 +130,27 @@ def compute_connectivity(
     :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
         If in_memory is True, use the returned files in a with statement, which closes them
         once they are not needed anymore; flow is None if generate_flow_memory is False.
+    :raises TypeError: if an input raster is neither a file name nor a GeoTiff.
+    :raises FileNotFoundError: if an input file, or the folder of an output file, doesn't exist.
+    :raises IsADirectoryError: if an input file name is a folder.
+    :raises ValueError: if a required input or output is missing, an input file isn't
+        a GeoTIFF, or the habitat and permeability (or landcover) rasters aren't on the
+        same pixel grid.
     """
-    assert habitat_fn is None or type(habitat_fn) == str or type(habitat_fn) == GeoTiff
-    assert landcover_fn is not None or permeability_fn is not None
-    assert landcover_fn is None or permeability_dict is not None
-    assert (
-        landcover_fn is None
-        or type(landcover_fn) == str
-        or type(landcover_fn) == GeoTiff
-    )
-    assert (
-        permeability_fn is None
-        or type(permeability_fn) == str
-        or type(permeability_fn) == GeoTiff
-    )
+    _check_input_type(habitat_fn, "habitat_fn")
+    _check_input_type(landcover_fn, "landcover_fn")
+    _check_input_type(permeability_fn, "permeability_fn")
+    if landcover_fn is None and permeability_fn is None:
+        raise ValueError(
+            "No permeability input: give permeability_fn, a GeoTIFF of "  # pragma: no mutate
+            "permeability, or landcover_fn and permeability_dict, a GeoTIFF of "  # pragma: no mutate
+            "landcover codes and the permeability of each code."  # pragma: no mutate
+        )
+    if landcover_fn is not None and permeability_dict is None:
+        raise ValueError(
+            "landcover_fn needs permeability_dict, the permeability of each "  # pragma: no mutate
+            "landcover code. Read it from a CSV with read_transmission_csv()."  # pragma: no mutate
+        )
 
     if random_seed is not None:
         torch.manual_seed(random_seed)
@@ -411,6 +419,137 @@ def analyze_tile_torch(
     return f
 
 
+def _check_input_type(fn: object, name: str) -> None:
+    """Raise a TypeError unless an input raster is None, a file name, or a GeoTiff.
+
+    :param fn: the input raster.
+    :param name: the name of the argument that gave fn, for the error message.
+    """
+    if fn is not None and not isinstance(fn, (str, GeoTiff)):
+        raise TypeError(
+            f"{name} must be a file name (str) or a GeoTiff, not "  # pragma: no mutate
+            f"{type(fn).__name__}. To pass a pathlib.Path, convert it with str()."  # pragma: no mutate
+        )
+
+
+def _open_geotiff(fn: str | GeoTiff, name: str) -> GeoTiff:
+    """Return the GeoTiff for an input raster, opening it if fn is a file name.
+
+    The file is checked first, so that a wrong path gives a message naming
+    the argument, instead of an error from inside rasterio.
+
+    :param fn: file name of a GeoTIFF, or an open GeoTiff, which is returned as is.
+    :param name: the name of the argument that gave fn, for error messages.
+    :return: the open GeoTiff.
+    :raises FileNotFoundError: if there is no file at fn.
+    :raises IsADirectoryError: if fn is a folder.
+    :raises ValueError: if fn can't be opened as a GeoTIFF.
+    """
+    if not isinstance(fn, str):
+        return fn
+    if os.path.isdir(fn):
+        raise IsADirectoryError(
+            f"{name} is a folder, not a GeoTIFF file: {fn}. Give the path of "  # pragma: no mutate
+            "the .tif file in it."  # pragma: no mutate
+        )
+    if not os.path.exists(fn):
+        raise FileNotFoundError(
+            f"{name} file not found: {os.path.abspath(fn)}. Check the path for "  # pragma: no mutate
+            "typos. Relative paths start from the folder Python runs in, "  # pragma: no mutate
+            f"{os.getcwd()}."  # pragma: no mutate
+        )
+    try:
+        return GeoTiff.from_file(fn)
+    # rasterio raises RasterioIOError, a subclass of OSError, for a file it
+    # can't open, and TypeError for a file in a format it can't write to;
+    # scgt opens input files for reading and writing.
+    except (OSError, TypeError) as error:
+        raise ValueError(
+            f"{name} can't be opened as a GeoTIFF: {fn} ({error}). Check that "  # pragma: no mutate
+            "it is a GeoTIFF (.tif) file, and not, for example, the CSV of "  # pragma: no mutate
+            "permeability per landcover code. scgt opens input files for "  # pragma: no mutate
+            "reading and writing, so you also need permission to write to it."  # pragma: no mutate
+        ) from error
+
+
+def _describe_grid(geotiff: GeoTiff) -> str:
+    """Describe the pixel size and position of a raster, for error messages."""
+    transform = geotiff.transform
+    return (
+        f"pixels of {abs(transform.a)} x {abs(transform.e)} with the top left "  # pragma: no mutate
+        f"corner at ({transform.c}, {transform.f})"  # pragma: no mutate
+    )
+
+
+def _check_same_grid(habitat: GeoTiff, permeability: GeoTiff, name: str) -> None:
+    """Raise a ValueError unless the habitat and permeability rasters share a pixel grid.
+
+    The two rasters are read together tile by tile, so each habitat pixel is
+    paired with the permeability pixel in the same row and column. If the
+    rasters differed in size, coordinate reference system, pixel size or
+    position, the paired pixels would be in different places on the map.
+
+    :param habitat: the habitat raster.
+    :param permeability: the permeability or landcover raster.
+    :param name: the name of the argument that gave permeability, for error messages.
+    """
+    fix = (
+        "Resample one raster onto the grid of the other, for example with "  # pragma: no mutate
+        "gdalwarp or GeoTiff.reproject_from_tiff()."  # pragma: no mutate
+    )
+    if (habitat.width, habitat.height) != (permeability.width, permeability.height):
+        raise ValueError(
+            f"habitat_fn and {name} must have the same size, but habitat_fn is "  # pragma: no mutate
+            f"{habitat.width} x {habitat.height} pixels and {name} is "  # pragma: no mutate
+            f"{permeability.width} x {permeability.height} pixels. {fix}"  # pragma: no mutate
+        )
+    # A raster without a coordinate reference system can't be compared.
+    if (
+        habitat.crs is not None
+        and permeability.crs is not None
+        and habitat.crs != permeability.crs
+    ):
+        raise ValueError(
+            f"habitat_fn and {name} must use the same coordinate reference "  # pragma: no mutate
+            f"system, but habitat_fn uses {habitat.crs} and {name} uses "  # pragma: no mutate
+            f"{permeability.crs}. {fix}"  # pragma: no mutate
+        )
+    # Differences below a thousandth of a pixel come from rounding when the
+    # rasters were written, so they are allowed. The square root of the area
+    # of a pixel is its size, also for a rotated grid.
+    tolerance = 1e-3 * abs(habitat.transform.determinant) ** 0.5
+    if not np.allclose(
+        habitat.transform[:6], permeability.transform[:6], rtol=0, atol=tolerance
+    ):
+        raise ValueError(
+            f"habitat_fn and {name} must be on the same pixel grid, but "  # pragma: no mutate
+            f"habitat_fn has {_describe_grid(habitat)}, and {name} has "  # pragma: no mutate
+            f"{_describe_grid(permeability)}. {fix}"  # pragma: no mutate
+        )
+
+
+def _check_output_file(fn: str | None, description: str) -> None:
+    """Check that an output GeoTIFF can be created, before any tile is analyzed.
+
+    :param fn: file name of the output.
+    :param description: what the output is, for error messages.
+    :raises ValueError: if fn is None.
+    :raises FileNotFoundError: if the folder of fn doesn't exist.
+    """
+    if fn is None:
+        raise ValueError(
+            f"No file name for the {description} output: give one "  # pragma: no mutate
+            "(connectivity_fn in compute_connectivity, output_repop_fn in "  # pragma: no mutate
+            "analyze_geotiffs), or set in_memory=True."  # pragma: no mutate
+        )
+    folder = os.path.dirname(os.path.abspath(fn))
+    if not os.path.isdir(folder):
+        raise FileNotFoundError(
+            f"The folder for the {description} output doesn't exist: {folder}. "  # pragma: no mutate
+            f"Create it, or choose another path than {fn}."  # pragma: no mutate
+        )
+
+
 def analyze_geotiffs(
     habitat_fn: str | GeoTiff | None = None,
     landcover_fn: str | GeoTiff | None = None,
@@ -463,6 +602,10 @@ def analyze_geotiffs(
         the files are not saved to disk, so the open files for connectivity and flow are returned.
     :param float_output: whether the output should be in floating point (True) or integer (False).
         If integer, values are rescaled to 0..255.
+    :raises FileNotFoundError: if an input file, or the folder of an output file, doesn't exist.
+    :raises IsADirectoryError: if an input file name is a folder.
+    :raises ValueError: if an output file name is missing, an input file isn't a GeoTIFF,
+        or the habitat and permeability (or landcover) rasters aren't on the same pixel grid.
     """
     assert analysis_fn is not None, (
         "analysis_fn is required."  # pragma: no mutate
@@ -475,20 +618,15 @@ def analyze_geotiffs(
     )
     habitat_geotiff = None
     if habitat_fn is not None:
-        habitat_geotiff = (
-            GeoTiff.from_file(habitat_fn) if isinstance(habitat_fn, str) else habitat_fn
-        )
+        habitat_geotiff = _open_geotiff(habitat_fn, "habitat_fn")
     # We specify permeability either via a terrain and a dictionary, or via a permeability file
     # with scaling.  In either case, we have a permeability geotiff, which we then have to
     # either scale or process via a dictionary.
     if permeability_fn is not None:
         # We are directly given a permeability file, which we scale via a constant.
         permeability_via_dictionary = False
-        permeability_geotiff = (
-            GeoTiff.from_file(permeability_fn)
-            if isinstance(permeability_fn, str)
-            else permeability_fn
-        )
+        permeability_name = "permeability_fn"
+        permeability_geotiff = _open_geotiff(permeability_fn, permeability_name)
     else:
         # We use terrain and dictionary.
         permeability_via_dictionary = True
@@ -499,20 +637,17 @@ def analyze_geotiffs(
             k: np.clip(v**permeability_scaling, 0, 1)
             for k, v in permeability_dictionary.items()
         }
-        permeability_geotiff = (
-            GeoTiff.from_file(landcover_fn)
-            if isinstance(landcover_fn, str)
-            else landcover_fn
-        )
+        permeability_name = "landcover_fn"
+        permeability_geotiff = _open_geotiff(landcover_fn, permeability_name)
 
-    # Checks that the habitat and permeability have the same size.
+    # Checks that the habitat and permeability cover the same pixels.
     if habitat_geotiff is not None:
-        assert (
-            habitat_geotiff.width == permeability_geotiff.width
-            and habitat_geotiff.height == permeability_geotiff.height
-        ), (
-            "Habitat and permeability must have the same size."  # pragma: no mutate
-        )
+        _check_same_grid(habitat_geotiff, permeability_geotiff, permeability_name)
+    # Checks the outputs before the analysis, which can take long.
+    if not in_memory:
+        _check_output_file(output_repop_fn, "connectivity")
+        if compute_flow:
+            _check_output_file(output_grad_fn, "flow")
 
     def do_analysis(conn_file: GeoTiff | None, flow_file: GeoTiff | None) -> None:
         # Reads the files.
