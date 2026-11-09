@@ -461,8 +461,9 @@ def _open_geotiff(fn: str | GeoTiff, name: str) -> GeoTiff:
     try:
         return GeoTiff.from_file(fn)
     # rasterio raises RasterioIOError, a subclass of OSError, for a file it
-    # can't open.
-    except OSError as error:
+    # can't open, and TypeError for a file in a format it can't write to;
+    # scgt opens input files for reading and writing.
+    except (OSError, TypeError) as error:
         raise ValueError(
             f"{name} can't be opened as a GeoTIFF: {fn} ({error}). Check that "  # pragma: no mutate
             "it is a GeoTIFF (.tif) file, and not, for example, the CSV of "  # pragma: no mutate
