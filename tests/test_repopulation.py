@@ -498,8 +498,15 @@ def test_compute_connectivity_forwarding(monkeypatch: pytest.MonkeyPatch) -> Non
     )
 
     # The old defaults, and in memory, flow only with generate_flow_memory.
+    # In memory, the layers come back as they are.
     mock.reset_mock()
-    compute_connectivity(permeability_fn="permeability.tif", num_gaps=3, in_memory=True)
+    mock.return_value = layers = MagicMock()
+    assert (
+        compute_connectivity(
+            permeability_fn="permeability.tif", num_gaps=3, in_memory=True
+        )
+        is layers
+    )
     mock.assert_called_once_with(
         habitat_layer=None,
         permeability_layer="permeability.tif",
@@ -580,8 +587,12 @@ def test_analyze_geotiffs_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # The old defaults; in memory, flow by default.
     mock.reset_mock()
-    analyze_geotiffs(
-        permeability_fn="permeability.tif", analysis_fn=analysis, in_memory=True
+    mock.return_value = layers = MagicMock()
+    assert (
+        analyze_geotiffs(
+            permeability_fn="permeability.tif", analysis_fn=analysis, in_memory=True
+        )
+        is layers
     )
     mock.assert_called_once_with(
         analysis,
