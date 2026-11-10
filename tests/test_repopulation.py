@@ -9,7 +9,6 @@ import numpy as np
 import pytest
 import rasterio
 import torch
-from scgt import GeoTiff
 
 from ecoscape_connectivity import (
     RandomPropagate,
@@ -644,8 +643,9 @@ def test_wrapper_checks(monkeypatch: pytest.MonkeyPatch) -> None:
 
 """
 compute_connectivity and analyze_geotiffs accept each input as a file name or
-as an open scgt GeoTiff, or any object with a rasterio dataset in .dataset.
-Each test opens a GeoTiff from a file and checks that:
+as an open scgt GeoTiff: any object with a rasterio dataset in .dataset, which
+is all EcoScape reads. The tests stand in for a caller's GeoTiff with such an
+object, since EcoScape no longer depends on scgt. Each checks that:
 - compute_connectivity, with connectivity_and_flow replaced by a mock, passes
   the GeoTiff on as its file's path;
 - analyze_geotiffs, with a fake analysis, gives the same output for the
@@ -675,20 +675,18 @@ def check_geotiff_input(
     by_file_name = run_analyze_geotiffs(
         tmp_path, Recorder(), **{argument: path}, **analyze_inputs
     )
-    geotiff = GeoTiff.from_file(path)
-    compute_connectivity(
-        **{argument: geotiff},
-        **compute_inputs,
-        connectivity_fn="connectivity.tif",
-        dispersal=5,
-    )
-    assert mock_connectivity_and_flow.call_args.kwargs[layer] == path
-    by_geotiff = run_analyze_geotiffs(
-        tmp_path, Recorder(), **{argument: geotiff}, **analyze_inputs
-    )
-    # Closes the dataset directly: closing an integer GeoTiff with a with
-    # statement writes a raster attribute table into the file.
-    geotiff.dataset.close()
+    with rasterio.open(path) as dataset:
+        geotiff: Any = SimpleNamespace(dataset=dataset)
+        compute_connectivity(
+            **{argument: geotiff},
+            **compute_inputs,
+            connectivity_fn="connectivity.tif",
+            dispersal=5,
+        )
+        assert mock_connectivity_and_flow.call_args.kwargs[layer] == path
+        by_geotiff = run_analyze_geotiffs(
+            tmp_path, Recorder(), **{argument: geotiff}, **analyze_inputs
+        )
     for output_by_file_name, output_by_geotiff in zip(
         by_file_name, by_geotiff, strict=True
     ):
@@ -738,16 +736,3 @@ def test_permeability_geotiff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         compute_inputs={},
         analyze_inputs={},
     )
-
-
-def test_dataset_stand_in(tmp_path: Path) -> None:
-    """Check that any object with a rasterio dataset in .dataset works as an
-    input, as a caller's scgt GeoTiff does, without EcoScape importing scgt.
-    """
-    path = write_geotiff(tmp_path / "permeability.tif", pattern([0.25, 0.5, 1]))
-    by_file_name = run_analyze_geotiffs(tmp_path, Recorder(), permeability_fn=path)
-    with rasterio.open(path) as dataset:
-        by_stand_in = run_analyze_geotiffs(
-            tmp_path, Recorder(), permeability_fn=SimpleNamespace(dataset=dataset)
-        )
-    np.testing.assert_array_equal(by_stand_in[0], by_file_name[0])

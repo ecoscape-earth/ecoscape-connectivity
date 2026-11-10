@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from scgt import GeoTiff
+import rasterio
 
 import ecoscape_connectivity
 
@@ -44,8 +44,8 @@ def test_connectivity(tmp_path: Path, tile_size: int, padding_size: int) -> None
         device="cpu",
     )
     cropped = 2 * (BORDER_SIZE - padding_size)
-    with GeoTiff.from_file(str(HABITAT_PATH)) as habitat:
+    with rasterio.open(HABITAT_PATH) as habitat:
         expected_size = (habitat.width - cropped, habitat.height - cropped)
     for output_path in (connectivity_path, flow_path):
-        with GeoTiff.from_file(str(output_path)) as output:
-            assert output.size == expected_size
+        with rasterio.open(output_path) as output:
+            assert (output.width, output.height) == expected_size

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-from scgt import GeoTiff
+import rasterio
 
 import ecoscape_connectivity
 
@@ -14,13 +14,18 @@ def scaled_permeability_path(tmp_path: Path) -> Path:
     """Write the test permeability clipped to [0, 1] with a maximum of 1."""
     path = tmp_path / "scaled_permeability.tif"
     permeability_path = Path(__file__).parent.parent / "assets" / "permeability.tif"
-    with GeoTiff.from_file(str(permeability_path)) as permeability:
-        tile = permeability.get_all_as_tile()
-        tile.m = np.clip(tile.m, 0, 1)
-        tile.m = tile.m / np.max(tile.m)
-        with permeability.clone_shape(str(path)) as scaled:
-            scaled.set_tile(tile)
+    with rasterio.open(permeability_path) as permeability:
+        values = np.clip(permeability.read(), 0, 1)
+        profile = permeability.profile
+    with rasterio.open(path, "w", **profile) as scaled:
+        scaled.write(values / np.max(values))
     return path
+
+
+def read(path: Path) -> np.ndarray:
+    """Return every band of a raster, as (bands, height, width)."""
+    with rasterio.open(path) as dataset:
+        return dataset.read()
 
 
 @pytest.mark.parametrize("float_output", [True, False])
@@ -45,12 +50,12 @@ def test_connectivity_from_permeability(
         float_output=float_output,
         device="cpu",
     )
-    with GeoTiff.from_file(str(scaled_permeability_path)) as permeability:
-        expected_size = permeability.size
+    with rasterio.open(scaled_permeability_path) as permeability:
+        expected_size = (permeability.width, permeability.height)
     for output_path in (connectivity_path, flow_path):
-        with GeoTiff.from_file(str(output_path)) as output:
-            assert output.size == expected_size
-            assert output.data_types[0] == ("float32" if float_output else "uint8")
+        with rasterio.open(output_path) as output:
+            assert (output.width, output.height) == expected_size
+            assert output.dtypes[0] == ("float32" if float_output else "uint8")
 
 
 def numpy_analysis(
@@ -58,8 +63,8 @@ def numpy_analysis(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return the permeability as connectivity, and a constant flow of 9.
 
-    Tiles arrive with a leading band axis, (1, w, h); analyze_geotiffs expects
-    numpy results without it. A flow of 9 is written as log10(1 + 9) * 20 = 20.
+    Tiles arrive with a leading band axis, (1, w, h); the results can leave it
+    out. A flow of 9 is written as log10(1 + 9) * 20 = 20.
     """
     connectivity = np.squeeze(permeability, axis=0)
     return connectivity, np.full_like(connectivity, 9.0)
@@ -81,14 +86,13 @@ def test_numpy_analysis_function(
         # Padding equal to the border keeps the output aligned with the input.
         border_size=10,
         padding_size=10,
-        # Analyze every tile; skipped tiles are written as zeros.
+        # Analyze every tile; skipped tiles are left at zero.
         minimum_habitat=0,
         output_repop_fn=str(connectivity_path),
         output_grad_fn=str(flow_path),
         float_output=float_output,
     )
-    with GeoTiff.from_file(str(scaled_permeability_path)) as permeability:
-        permeability_values = permeability.get_all_as_tile().m
+    permeability_values = read(scaled_permeability_path)
     if float_output:
         expected_connectivity = permeability_values
         expected_flow = np.full_like(permeability_values, 20.0)
@@ -97,9 +101,5 @@ def test_numpy_analysis_function(
             np.uint8
         )
         expected_flow = np.full_like(permeability_values, 20, dtype=np.uint8)
-    with GeoTiff.from_file(str(connectivity_path)) as connectivity:
-        np.testing.assert_array_equal(
-            connectivity.get_all_as_tile().m, expected_connectivity
-        )
-    with GeoTiff.from_file(str(flow_path)) as flow:
-        np.testing.assert_array_equal(flow.get_all_as_tile().m, expected_flow)
+    np.testing.assert_array_equal(read(connectivity_path), expected_connectivity)
+    np.testing.assert_array_equal(read(flow_path), expected_flow)
