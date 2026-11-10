@@ -3,7 +3,9 @@ import os
 from collections.abc import Callable, Iterable
 from typing import Self
 
+import matplotlib.pyplot as plt
 import numpy as np
+import rasterio
 import torch
 from torch import nn
 
@@ -60,6 +62,23 @@ def createdir_for_file(fn: str) -> None:
     dirs, _ffn = os.path.split(fn)
     # print("Creating", dirs)
     os.makedirs(dirs, exist_ok=True)
+
+
+def draw_layer(path: str, title: str, size: float = 5) -> None:
+    """Draw the first band of a layer, such as a connectivity or flow layer
+    written by connectivity_and_flow, with a color bar.
+
+    :param path: path of the layer, or anything else rasterio.open accepts.
+    :param title: title of the figure.
+    :param size: width and height of the figure, in inches.
+    """
+    with rasterio.open(path) as dataset:
+        values = dataset.read(1)
+    plt.figure(figsize=(size, size))
+    plt.title(title)
+    plt.imshow(values, cmap="inferno")
+    plt.colorbar(shrink=0.6)
+    plt.show()
 
 
 class SingleIterator[T]:

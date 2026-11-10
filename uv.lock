@@ -934,6 +934,7 @@ name = "ecoscape-connectivity"
 version = "0.2.5"
 source = { editable = "." }
 dependencies = [
+    { name = "matplotlib" },
     { name = "numpy" },
     { name = "rasterio" },
     { name = "torch" },
@@ -955,6 +956,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "matplotlib", specifier = ">=3.11.2" },
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "rasterio", specifier = ">=1.5.2" },
     { name = "torch", specifier = ">=2.14.1" },

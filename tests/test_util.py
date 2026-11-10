@@ -2,16 +2,19 @@
 
 from collections.abc import Callable, Iterable
 from pathlib import Path
+from unittest.mock import MagicMock
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from ecoscape_connectivity import SingleIterator, read_transmission_csv
+from ecoscape_connectivity import SingleIterator, draw_layer, read_transmission_csv
 from ecoscape_connectivity.util import (
     createdir_for_file,
     dict_translate,
     rescale_resistance,
 )
+from tests.helpers import write_geotiff
 
 
 def test_dict_translate() -> None:
@@ -93,3 +96,24 @@ def test_single_iterator(
         (None, 4),
         (None, 5),
     ]
+
+
+def test_draw_layer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that draw_layer draws the layer's first band, with its title,
+    size and a color bar.
+
+    plt.show is replaced by a mock, so no window opens.
+    """
+    values = np.arange(12, dtype=np.float32).reshape(3, 4)
+    path = write_geotiff(tmp_path / "layer.tif", values)
+    show = MagicMock()
+    monkeypatch.setattr(plt, "show", show)
+    draw_layer(path, "Connectivity", size=3)
+    show.assert_called_once()
+    figure = plt.gcf()
+    image_axes, colorbar_axes = figure.axes
+    np.testing.assert_array_equal(image_axes.images[0].get_array(), values)
+    assert image_axes.get_title() == "Connectivity"
+    assert tuple(figure.get_size_inches()) == (3, 3)
+    assert colorbar_axes is not None
+    plt.close(figure)

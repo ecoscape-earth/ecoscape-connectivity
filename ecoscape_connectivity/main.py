@@ -23,9 +23,7 @@ def main(args: argparse.Namespace) -> None:
         flow_layer=args.flow,
         compute_flow=args.flow is not None,
         num_simulations=args.num_simulations,
-        # --gap_crossing counts the pixels crossed; the paper's gap-crossing
-        # distance is one more.
-        gap_crossing_distance=args.gap_crossing + 1,
+        gap_crossing=args.gap_crossing,
         dispersal_distance=args.dispersal,
         num_gap_crossings=args.num_gap_crossings,
         seed_density=args.seed_density,

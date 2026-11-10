@@ -5,6 +5,7 @@ from .util import (
     RandomPropagate,
     SingleIterator,
     analyze_tile_torch,
+    draw_layer,
     read_transmission_csv,
 )
 
@@ -18,6 +19,7 @@ __all__ = [
     "compute_connectivity",
     "connectivity_and_flow",
     "constant",
+    "draw_layer",
     "half_cauchy",
     "read_transmission_csv",
 ]

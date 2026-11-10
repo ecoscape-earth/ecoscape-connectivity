@@ -160,9 +160,7 @@ def compute_connectivity(
         compute_flow=generate_flow_memory if in_memory else flow_fn is not None,
         dispersal_distance=dispersal,
         num_gap_crossings=num_gaps,
-        # gap_crossing counts the pixels crossed; the paper's gap-crossing
-        # distance is one more.
-        gap_crossing_distance=gap_crossing + 1,
+        gap_crossing=gap_crossing,
         num_simulations=num_simulations,
         seed_density=seed_density,
         random_seed=random_seed,

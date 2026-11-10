@@ -480,8 +480,7 @@ def test_compute_connectivity_forwarding(monkeypatch: pytest.MonkeyPatch) -> Non
         compute_flow=True,
         dispersal_distance=7,
         num_gap_crossings=5,
-        # gap_crossing counts the pixels crossed: the distance is one more.
-        gap_crossing_distance=3,
+        gap_crossing=2,
         num_simulations=12,
         seed_density=3,
         random_seed=9,
@@ -518,7 +517,7 @@ def test_compute_connectivity_forwarding(monkeypatch: pytest.MonkeyPatch) -> Non
         compute_flow=False,
         dispersal_distance=None,
         num_gap_crossings=3,
-        gap_crossing_distance=1,
+        gap_crossing=0,
         num_simulations=400,
         seed_density=4,
         random_seed=None,

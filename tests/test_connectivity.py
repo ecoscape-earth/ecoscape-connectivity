@@ -375,8 +375,8 @@ def test_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
     """Check that connectivity_and_flow passes each setting on unchanged.
 
     The test replaces analyze_tile_torch and analyze_tiles with mocks, so no
-    simulation runs. The simulation counts gap-crossings in pixels crossed,
-    g - 1; without a dispersal distance, it is n * g.
+    simulation runs. Without a dispersal distance, it is
+    num_gap_crossings * (gap_crossing + 1).
     """
     mock_analyze_tile_torch = MagicMock()
     mock_analyze_tiles = MagicMock()
@@ -393,7 +393,7 @@ def test_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
         flow_layer="flow.tif",
         compute_flow=False,
         dispersal_distance=7,
-        gap_crossing_distance=3,
+        gap_crossing=2,
         num_simulations=12,
         seed_density=3,
         batch_size=3,
@@ -441,7 +441,7 @@ def test_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
     connectivity_and_flow(
         permeability_layer="permeability.tif",
         num_gap_crossings=4,
-        gap_crossing_distance=3,
+        gap_crossing=2,
     )
     assert mock_analyze_tile_torch.call_args.kwargs["dispersal"] == 12
 
@@ -449,8 +449,6 @@ def test_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_matches_compute_connectivity(tmp_path: Path) -> None:
     """Check that connectivity_and_flow gives exactly the same layers as
     compute_connectivity, which it replaces, for the same inputs and seed.
-
-    compute_connectivity's gap_crossing of 0 is a gap-crossing distance of 1.
     """
     habitat_path = write_geotiff(
         tmp_path / "habitat.tif", pattern([0, 1, 1], dtype=np.uint8)
@@ -481,7 +479,7 @@ def test_matches_compute_connectivity(tmp_path: Path) -> None:
         connectivity_layer=str(tmp_path / "new_connectivity.tif"),
         flow_layer=str(tmp_path / "new_flow.tif"),
         dispersal_distance=5,
-        gap_crossing_distance=1,
+        gap_crossing=0,
         **settings,
     )
     for output in ("connectivity", "flow"):
