@@ -938,6 +938,7 @@ version = "0.2.5"
 source = { editable = "." }
 dependencies = [
     { name = "numpy" },
+    { name = "rasterio" },
     { name = "scgt" },
     { name = "torch" },
 ]
@@ -952,13 +953,13 @@ dev = [
     { name = "pydoc-markdown" },
     { name = "pytest" },
     { name = "pytest-cov" },
-    { name = "rasterio" },
     { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = ">=2.5.3" },
+    { name = "rasterio", specifier = ">=1.5.2" },
     { name = "scgt", specifier = ">=0.0.32" },
     { name = "torch", specifier = ">=2.14.1" },
 ]
@@ -973,7 +974,6 @@ dev = [
     { name = "pydoc-markdown", specifier = "==4.8.2" },
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "rasterio", specifier = ">=1.5.2" },
     { name = "ruff", specifier = ">=0.17.3" },
 ]
 

@@ -26,6 +26,7 @@ classifiers = [
 ]
 dependencies = [
     "numpy>=2.5.3",
+    "rasterio>=1.5.2",
     "scgt>=0.0.32",
     "torch>=2.14.1",
 ]
@@ -40,7 +41,6 @@ dev = [
     "pydoc-markdown==4.8.2",
     "pytest==9.1.1",
     "pytest-cov>=7.1.0",
-    "rasterio>=1.5.2",
     "ruff>=0.17.3",
 ]
 
