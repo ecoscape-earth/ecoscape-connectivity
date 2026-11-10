@@ -16,23 +16,85 @@ This package implements the computation of connectivity and flow according to th
 * Natalie Valett (nvalett@ucsc.edu)
 * Jasmine Tai (cjtai@ucsc.edu)
 
+## Installing
+
+    pip install ecoscape-connectivity
+
+EcoScape reads and writes rasters with rasterio, whose packages include GDAL, so you don't need to install GDAL yourself.
 
 The computation will be much faster if you run it with GPU support. We recommend at least a T2-equivalent GPU or better.
 
-The main method is `compute_connectivity`, which computes the connectivity and flow for a given raster.
+## Usage
+
+`connectivity_and_flow` computes the connectivity and flow layers of a species' habitat. Its parameters are named as in the EcoScape paper. Each layer is a path: a local file, or anything else `rasterio.open` accepts, such as a URL.
+
+```python
+import ecoscape_connectivity
+
+permeability_table = ecoscape_connectivity.read_transmission_csv("permeability.csv")
+ecoscape_connectivity.connectivity_and_flow(
+    habitat_layer="habitat.tif",
+    landcover_layer="landcover.tif",
+    permeability_table=permeability_table,
+    connectivity_layer="connectivity.tif",
+    flow_layer="flow.tif",
+    dispersal_distance=40,
+    gap_crossing_distance=2,
+)
+```
+
+The landscape matrix permeability comes either from a landcover layer and a permeability table, as above, or from a permeability layer (`permeability_layer`). Without output paths, `connectivity_and_flow` returns the layers in memory, as numpy arrays with their rasterio profile:
+
+```python
+layers = ecoscape_connectivity.connectivity_and_flow(
+    habitat_layer="habitat.tif",
+    landcover_layer="landcover.tif",
+    permeability_table=permeability_table,
+    dispersal_distance=40,
+)
+layers.connectivity, layers.flow, layers.profile
+```
+
+`analyze_tiles` runs your own analysis function over the layers, tile by tile. The full documentation of every function follows below.
+
+## Command line
+
+    ecoscape-connectivity --habitat habitat.tif --landcover landcover.tif \
+        --permeability permeability.csv --connectivity connectivity.tif \
+        --flow flow.tif --dispersal 40
+
+Run `ecoscape-connectivity --help` for every option.
+
+## Migrating from `compute_connectivity`
+
+`compute_connectivity` and `analyze_geotiffs` are deprecated, and a future version will remove them. They still work, and give the same results, but warn with a `FutureWarning`. Replace them with `connectivity_and_flow` and `analyze_tiles`:
+
+| `compute_connectivity` | `connectivity_and_flow` |
+| --- | --- |
+| `habitat_fn` | `habitat_layer` |
+| `landcover_fn` | `landcover_layer` |
+| `permeability_fn` | `permeability_layer` |
+| `permeability_dict` | `permeability_table` |
+| `permeability_scaling` | `permeability_exponent` |
+| `connectivity_fn` | `connectivity_layer` |
+| `flow_fn` | `flow_layer`; `connectivity_and_flow` computes flow unless `compute_flow=False` |
+| `dispersal` | `dispersal_distance` |
+| `num_gaps` | `num_gap_crossings` |
+| `gap_crossing` | `gap_crossing_distance`, which is one more: `gap_crossing=1` is `gap_crossing_distance=2` |
+| `minimum_habitat` | `minimum_tile_habitat` |
+| `repopulation_only_in_habitat` | `connectivity_only_in_habitat` |
+| `in_memory=True`, `generate_flow_memory` | leave out `connectivity_layer`; `compute_flow` |
+
+`analyze_geotiffs` becomes `analyze_tiles`, which takes the analysis function first, with the same new names, and `output_repop_fn`, `output_grad_fn` and `generate_gradient` become `connectivity_layer`, `flow_layer` and `compute_flow`. `analyze_tiles` has the same defaults as `connectivity_and_flow`: tiles of 1000 pixels, a border of 100, and floating point output. `display_tiles` is no longer supported.
+
+Pass paths instead of scgt `GeoTiff` objects: the new functions don't take them. In memory, both the old and the new functions now return the layers as numpy arrays, rather than `GeoTiff` objects.
 
 ## Running the tests
 
-You need [uv](https://docs.astral.sh/uv/getting-started/installation/) and the GDAL library (for example, `brew install gdal` on macOS). The GDAL version must match the one set in `pyproject.toml` (currently 3.13.3); check yours with `gdal-config --version`.
-
-Install the exact dependency versions from `uv.lock` into `.venv`, then run the tests:
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/). Install the exact dependency versions from `uv.lock` into `.venv`, then run the tests:
 
     make install
     make test
-
-
-
-
 
 <a id="connectivity"></a>
 
