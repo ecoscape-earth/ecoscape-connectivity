@@ -16,18 +16,9 @@ permissions:
 
 jobs:
   test:
+    # rasterio's wheels include GDAL, so the runner needs no system GDAL.
     runs-on: ubuntu-latest
-    # The GDAL Python package is built against the system GDAL library, so the
-    # library version must match constraint-dependencies in pyproject.toml.
-    container: ghcr.io/osgeo/gdal:ubuntu-small-3.13.3
-    env:
-      # Use the Python in .python-version, downloaded by uv, not the
-      # container's Python, which lacks the headers needed to build GDAL.
-      UV_PYTHON_PREFERENCE: only-managed
     steps:
-      - name: Install build tools
-        run: apt-get update && apt-get install -y --no-install-recommends git g++ make
-
       - uses: actions/checkout@v5
 
       - uses: astral-sh/setup-uv@v6
