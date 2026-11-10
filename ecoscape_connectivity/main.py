@@ -1,29 +1,31 @@
 import argparse
 import os
 
-from .repopulation import compute_connectivity
+from .connectivity import connectivity_and_flow
 from .util import createdir_for_file, read_transmission_csv
 
 
 def main(args: argparse.Namespace) -> None:
-    # Reads and transltes the resistance dictionary.
-    transmission_d = read_transmission_csv(args.permeability)
+    """Compute connectivity, and flow if --flow is given, from a habitat and a
+    landcover layer, with the permeability of each landcover class from the
+    --permeability table.
+    """
     # Creates output folders, if missing.
     createdir_for_file(args.connectivity)
     if args.flow is not None:
         createdir_for_file(args.flow)
 
-    compute_connectivity(
-        habitat_fn=args.habitat,
-        landcover_fn=args.landcover,
-        permeability_fn=args.permeability,
-        permeability_dict=transmission_d,
-        connectivity_fn=args.connectivity,
-        flow_fn=args.flow,
+    connectivity_and_flow(
+        habitat_layer=args.habitat,
+        landcover_layer=args.landcover,
+        permeability_table=read_transmission_csv(args.permeability),
+        connectivity_layer=args.connectivity,
+        flow_layer=args.flow,
+        compute_flow=args.flow is not None,
         num_simulations=args.num_simulations,
         gap_crossing=args.gap_crossing,
-        dispersal=args.dispersal,
-        num_gaps=args.num_gap_crossings,
+        dispersal_distance=args.dispersal,
+        num_gap_crossings=args.num_gap_crossings,
         seed_density=args.seed_density,
         tile_size=args.tile_size,
         border_size=args.border_size,

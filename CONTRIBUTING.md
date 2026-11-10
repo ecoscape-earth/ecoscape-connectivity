@@ -1,7 +1,7 @@
 
 ## Setting up
 
-1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and the GDAL library (for example, `brew install gdal` on macOS). The GDAL version must match `constraint-dependencies` in `pyproject.toml`; check yours with `gdal-config --version`.
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/). EcoScape reads and writes rasters with rasterio, whose packages include GDAL, so you don't need to install GDAL yourself.
 2. From the repository folder, install the exact dependency versions from `uv.lock` into `.venv`, and the git hook that checks your code before each commit (see [Checking and formatting code](#checking-and-formatting-code)):
 
        make install
@@ -53,7 +53,7 @@ It gives the file and line, what is wrong, and the error code in brackets. Here,
 
 Fix the code or the annotation rather than silencing the error. Use `# type: ignore[code]`, with the specific error code and a comment saying why, only when mypy is wrong and the code can't reasonably be changed to show it, for example when a library's own annotations are incorrect. mypy reports an ignore that is no longer needed.
 
-scgt and the GDAL bindings (`osgeo`) have no type information, so mypy treats their objects, such as `GeoTiff`, as "any type" and doesn't check how they are used.
+rasterio has no type information, so mypy treats its objects, such as open datasets, as "any type" and doesn't check how they are used.
 
 ## Measuring test coverage
 

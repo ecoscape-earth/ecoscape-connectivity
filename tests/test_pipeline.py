@@ -1,4 +1,4 @@
-"""Tests for compute_connectivity on small synthetic GeoTIFFs.
+"""Tests for connectivity_and_flow on small synthetic GeoTIFFs.
 
 The landscape is 170 x 150 pixels. With tile_size=40 and border_size=10,
 the tile cores start at x = 10, 50, 90, 130 and y = 10, 50, 90, 130, so
@@ -38,7 +38,7 @@ def make_habitat() -> np.ndarray:
     """Return round habitat patches every 20 pixels.
 
     The top left tile, with its border (input rows and columns 0-59), has
-    only a 3 x 3 patch: 0.25% habitat, so minimum_habitat can skip it.
+    only a 3 x 3 patch: 0.25% habitat, so minimum_tile_habitat can skip it.
     """
     rows, columns = np.mgrid[:HEIGHT, :WIDTH]
     habitat = np.zeros((HEIGHT, WIDTH), dtype=np.uint8)
@@ -69,20 +69,22 @@ def to_output(array: np.ndarray, padding_size: int = 0) -> np.ndarray:
 @pytest.fixture
 def landscape(tmp_path: Path) -> dict[str, Any]:
     """Write the habitat and terrain GeoTIFFs, and return the arguments
-    compute_connectivity needs to read them.
+    connectivity_and_flow needs to read them.
     """
     habitat = make_habitat()
     return {
-        "habitat_fn": write_geotiff(tmp_path / "habitat.tif", habitat),
-        "landcover_fn": write_geotiff(tmp_path / "terrain.tif", make_terrain(habitat)),
-        "permeability_dict": PERMEABILITY,
+        "habitat_layer": write_geotiff(tmp_path / "habitat.tif", habitat),
+        "landcover_layer": write_geotiff(
+            tmp_path / "terrain.tif", make_terrain(habitat)
+        ),
+        "permeability_table": PERMEABILITY,
     }
 
 
 def run(
     tmp_path: Path, landscape: dict[str, Any], name: str, **kwargs: Any
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Run compute_connectivity on the CPU and return connectivity and flow.
+    """Run connectivity_and_flow on the CPU and return connectivity and flow.
 
     kwargs override the defaults below. The outputs are written to
     tmp_path, with name to tell runs apart.
@@ -92,7 +94,7 @@ def run(
     arguments = {
         "tile_size": 40,
         "border_size": BORDER_SIZE,
-        "dispersal": 5,
+        "dispersal_distance": 5,
         "num_simulations": 20,
         "random_seed": 1,
         "device": "cpu",
@@ -100,9 +102,14 @@ def run(
         **kwargs,
     }
     # On disk, the results are only in the files.
-    assert ecoscape_connectivity.compute_connectivity(
-        connectivity_fn=str(connectivity_path), flow_fn=str(flow_path), **arguments
-    ) == (None, None)
+    assert (
+        ecoscape_connectivity.connectivity_and_flow(
+            connectivity_layer=str(connectivity_path),
+            flow_layer=str(flow_path),
+            **arguments,
+        )
+        is None
+    )
     return read_geotiff(connectivity_path), read_geotiff(flow_path)
 
 
@@ -130,8 +137,8 @@ def test_reproducible_half_cauchy(tmp_path: Path, landscape: dict[str, Any]) -> 
     random dispersal.
     """
     dispersal = half_cauchy(median=3, truncation=9)
-    connectivity_a, _ = run(tmp_path, landscape, "a", dispersal=dispersal)
-    connectivity_b, _ = run(tmp_path, landscape, "b", dispersal=dispersal)
+    connectivity_a, _ = run(tmp_path, landscape, "a", dispersal_distance=dispersal)
+    connectivity_b, _ = run(tmp_path, landscape, "b", dispersal_distance=dispersal)
     np.testing.assert_array_equal(connectivity_a, connectivity_b)
 
 
@@ -210,13 +217,15 @@ def test_missing_terrain_code(
 
 
 def test_skipped_tile(tmp_path: Path, landscape: dict[str, Any], dump: Dump) -> None:
-    """Check that a tile with less habitat than minimum_habitat is skipped,
+    """Check that a tile with less habitat than minimum_tile_habitat is skipped,
     leaving zero output, while the same tile is computed when it isn't skipped.
     """
     # The top left tile core, input rows and columns 10-49.
     tile = (slice(0, 40), slice(0, 40))
-    computed, _ = run(tmp_path, landscape, "computed", minimum_habitat=0)
-    skipped, skipped_flow = run(tmp_path, landscape, "skipped", minimum_habitat=0.01)
+    computed, _ = run(tmp_path, landscape, "computed", minimum_tile_habitat=0)
+    skipped, skipped_flow = run(
+        tmp_path, landscape, "skipped", minimum_tile_habitat=0.01
+    )
     dump(computed=computed, skipped=skipped, skipped_flow=skipped_flow)
     assert (computed[tile] > 0).any()
     assert (skipped[tile] == 0).all()
@@ -250,22 +259,19 @@ def test_map_position(
 
 
 def test_in_memory(landscape: dict[str, Any]) -> None:
-    """Check that in_memory=True returns open, readable outputs, with flow
-    when generate_flow_memory is True.
+    """Check that without output paths, connectivity_and_flow returns the
+    layers as arrays, with flow.
     """
-    connectivity, flow = ecoscape_connectivity.compute_connectivity(
+    layers = ecoscape_connectivity.connectivity_and_flow(
         tile_size=40,
         border_size=BORDER_SIZE,
-        dispersal=5,
+        dispersal_distance=5,
         num_simulations=20,
         random_seed=1,
         device="cpu",
-        in_memory=True,
-        generate_flow_memory=True,
         **landscape,
     )
-    assert connectivity is not None
-    assert flow is not None
-    with connectivity, flow:
-        assert (connectivity.dataset.read(1) > 0).any()
-        assert (flow.dataset.read(1) > 0).any()
+    assert isinstance(layers, ecoscape_connectivity.ConnectivityLayers)
+    assert layers.flow is not None
+    assert (layers.connectivity > 0).any()
+    assert (layers.flow > 0).any()

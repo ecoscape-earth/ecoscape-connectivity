@@ -25,9 +25,11 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "matplotlib>=3.11.2",
     "numpy>=2.5.3",
-    "scgt>=0.0.32",
+    "rasterio>=1.5.2",
     "torch>=2.14.1",
+    "typing-extensions>=4.16.0",
 ]
 
 [dependency-groups]
@@ -40,15 +42,8 @@ dev = [
     "pydoc-markdown==4.8.2",
     "pytest==9.1.1",
     "pytest-cov>=7.1.0",
-    "rasterio>=1.5.2",
     "ruff>=0.17.3",
 ]
-
-[tool.uv]
-# The GDAL Python package (required by scgt) is built from source against
-# the system GDAL library, so its version must match the installed library
-# (gdal-config --version). Remove once scgt no longer needs GDAL (#33).
-constraint-dependencies = ["gdal==3.13.3"]
 
 [tool.setuptools]
 packages = ["ecoscape_connectivity"]
@@ -81,8 +76,8 @@ disallow_untyped_defs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-# scgt, the GDAL bindings (osgeo) and rasterio have no type information.
-module = ["scgt", "scgt.*", "osgeo", "osgeo.*", "rasterio", "rasterio.*"]
+# rasterio has no type information.
+module = ["rasterio", "rasterio.*"]
 ignore_missing_imports = true
 
 [tool.mutmut]
