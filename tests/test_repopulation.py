@@ -1,11 +1,13 @@
 """Tests for repopulation.py."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, ClassVar
 from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+import rasterio
 import torch
 from scgt import GeoTiff
 
@@ -18,7 +20,14 @@ from ecoscape_connectivity import (
     repopulation,
 )
 from tests.conftest import Dump
-from tests.helpers import read_geotiff, write_geotiff
+from tests.helpers import (
+    BORDER_SIZE,
+    TILE_SIZE,
+    Recorder,
+    pattern,
+    read_geotiff,
+    write_geotiff,
+)
 
 
 def propagate(
@@ -395,54 +404,6 @@ def test_tile_averaging(dispersal: Any) -> None:
     torch.testing.assert_close(flow, expected / 3)
 
 
-"""
-These tests for analyze_geotiffs with fake analysis functions for predictable
-output. These cover the code around the simulation: reading and clipping the
-inputs, scaling the permeability, padding, skipping tiles, converting the output
-and writing each tile in its place. Input values are multiples of 1/16 or 1/32,
-which float32 and float64 hold exactly, so converting to uint8 gives the same
-result in numpy and torch.
-"""
-
-
-HEIGHT, WIDTH = 50, 70
-BORDER_SIZE = 10
-TILE_SIZE = 20
-
-
-def pattern(values: list[float], dtype: type = np.float32) -> np.ndarray:
-    """Return a HEIGHT x WIDTH array that cycles through values, so that
-    neighboring pixels differ and a tile written in the wrong place shows.
-    """
-    rows, columns = np.mgrid[:HEIGHT, :WIDTH]
-    return np.array(values, dtype=dtype)[(3 * rows + 5 * columns) % len(values)]
-
-
-def crop(array: np.ndarray, padding_size: int = 0) -> np.ndarray:
-    """Crop an input-sized array to the output's area."""
-    offset = BORDER_SIZE - padding_size
-    return array[offset : HEIGHT - offset, offset : WIDTH - offset]
-
-
-class Recorder:
-    """Fake analysis function that records the tiles it receives.
-
-    It returns the permeability as connectivity and the habitat as flow,
-    so the output shows the inputs after clipping and scaling.
-    """
-
-    def __init__(self) -> None:
-        self.tiles: list[tuple[np.ndarray, np.ndarray]] = []
-
-    def __call__(
-        self, habitat: np.ndarray, permeability: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
-        self.tiles.append((habitat.copy(), permeability.copy()))
-        # Tiles arrive with a leading band axis, (1, height, width);
-        # analyze_geotiffs expects numpy results without it.
-        return permeability[0], habitat[0]
-
-
 def run_analyze_geotiffs(
     tmp_path: Path, analysis_fn: Any, **kwargs: Any
 ) -> list[np.ndarray]:
@@ -465,265 +426,24 @@ def run_analyze_geotiffs(
     return [read_geotiff(connectivity_path), read_geotiff(flow_path)]
 
 
-@pytest.mark.parametrize("source", ["dictionary", "file"])
-def test_inputs(tmp_path: Path, source: str) -> None:
-    """Check the habitat and permeability the analysis receives: clipped to
-    [0, 1], scaled, padded, and in the right place.
-
-    The permeability scaling of 3 tells p ** 3 apart from p * 3, and keeps
-    the sign of negative values, so clipping at 0 shows.
-    """
-    padding_size = 4
-    habitat = pattern([-0.5, 0, 0.25, 0.75, 1, 1.5])
-    # Habitat values are clipped to [0, 1].
-    expected_habitat = pattern([0, 0, 0.25, 0.75, 1, 1])
-    if source == "dictionary":
-        # Code 5 is missing from the dictionary, so its permeability is 0.
-        # Scaled values are clipped to [0, 1]: (-0.5) ** 3 to 0, 1.5 ** 3 to 1.
-        landcover = pattern([1, 2, 3, 4, 5], dtype=np.uint8)
-        permeability_input = {
-            "landcover_fn": write_geotiff(tmp_path / "landcover.tif", landcover),
-            "permeability_dictionary": {1: -0.5, 2: 0.5, 3: 1.5, 4: 1.0},
-            # The padding is a landcover code: 2 has a permeability of 0.5.
-            "permeability_padding": 2,
-        }
-        expected_permeability = pattern([0, 0.125, 1, 1, 0])
-    else:
-        # Values are clipped to [0, 1] before scaling.
-        permeability = pattern([-0.5, 0.25, 0.5, 1.5])
-        permeability_input = {
-            "permeability_fn": write_geotiff(
-                tmp_path / "permeability.tif", permeability
-            ),
-            "permeability_padding": 0.5,
-        }
-        expected_permeability = pattern([0, 1 / 64, 0.125, 1])
-    recorder = Recorder()
-    connectivity, flow = run_analyze_geotiffs(
-        tmp_path,
-        recorder,
-        habitat_fn=write_geotiff(tmp_path / "habitat.tif", habitat),
-        permeability_scaling=3,
-        padding_size=padding_size,
-        habitat_padding=0.75,
-        float_output=True,
-        **permeability_input,
-    )
-
-    np.testing.assert_array_equal(
-        connectivity, crop(expected_permeability, padding_size)
-    )
-    # The recorder returns the habitat as flow, written as log10(1 + flow) * 20.
-    np.testing.assert_allclose(
-        flow,
-        crop(np.log10(1 + expected_habitat) * 20, padding_size),
-        rtol=1e-6,
-    )
-    # The first tile's border reaches padding_size pixels past the top of the
-    # input, which is filled with the padding values: 0.5 ** 3 for the
-    # permeability, and 0.75 for the habitat.
-    first_habitat, first_permeability = recorder.tiles[0]
-    assert (first_habitat[0, :padding_size] == 0.75).all()
-    assert (first_permeability[0, :padding_size] == 0.125).all()
-    # The rest of the tile is the input's top left corner: its core starts at
-    # BORDER_SIZE - padding_size, and it ends a border past the core.
-    end = BORDER_SIZE - padding_size + TILE_SIZE + BORDER_SIZE
-    np.testing.assert_array_equal(
-        first_habitat[0, padding_size:, padding_size:], expected_habitat[:end, :end]
-    )
-
-
 """
-Permeability values, multiples of 1/16 from 0 to 1, and the fake analysis's
-results for them: connectivity from -0.25 to 1.25, and flow written as
-400 * p - 19.5, from -19.5 to 380.5. Both go past [0, 255] once converted
-to uint8, and none is close to a whole number, so truncation is exact.
+compute_connectivity and analyze_geotiffs are deprecated wrappers around
+connectivity_and_flow and analyze_tiles. These tests replace the new
+functions with mocks, so no simulation runs, and check that each wrapper
+passes every setting on, translated to the new names, with its own old
+defaults: a dropped argument would otherwise fall back silently to the new
+function's default.
 """
-PERMEABILITY_GRID = [k / 16 for k in range(17)]
-
-
-def fake_connectivity[T: (np.ndarray, torch.Tensor)](permeability: T) -> T:
-    """Return connectivity from -0.25 to 1.25, for numpy or torch."""
-    return 1.5 * permeability - 0.25
-
-
-def fake_flow[T: (np.ndarray, torch.Tensor)](permeability: T) -> T:
-    """Return a flow that is written as 400 * permeability - 19.5."""
-    return 10 ** (20 * permeability - 0.975) - 1
-
-
-def numpy_analysis(
-    habitat: np.ndarray, permeability: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """Fake analysis returning 2-D numpy arrays."""
-    return fake_connectivity(permeability[0]), fake_flow(permeability[0])
-
-
-def torch_analysis(
-    habitat: np.ndarray, permeability: np.ndarray
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Fake analysis returning (1, height, width) tensors, like
-    analyze_tile_torch.
-    """
-    tensor = torch.from_numpy(permeability)
-    return fake_connectivity(tensor), fake_flow(tensor)
-
-
-@pytest.mark.parametrize("float_output", [True, False], ids=["float", "uint8"])
-@pytest.mark.parametrize(
-    "analysis_fn", [numpy_analysis, torch_analysis], ids=["numpy", "torch"]
-)
-def test_output_conversion(
-    tmp_path: Path, analysis_fn: Any, float_output: bool
-) -> None:
-    """Check the conversion of connectivity and flow to the output.
-
-    Float output keeps connectivity as is, and writes flow as
-    log10(1 + flow) * 20. uint8 output writes clip(connectivity * 255) and
-    clip(log10(1 + flow) * 20), both clipped to [0, 255] and truncated.
-    """
-    permeability = pattern(PERMEABILITY_GRID)
-    connectivity, flow = run_analyze_geotiffs(
-        tmp_path,
-        analysis_fn,
-        permeability_fn=write_geotiff(tmp_path / "permeability.tif", permeability),
-        float_output=float_output,
-    )
-    expected_connectivity = crop(fake_connectivity(permeability.astype(float)))
-    expected_flow = crop(400 * permeability.astype(float) - 19.5)
-    if float_output:
-        np.testing.assert_array_equal(connectivity, expected_connectivity)
-        np.testing.assert_allclose(flow, expected_flow, atol=1e-3)
-    else:
-        np.testing.assert_array_equal(
-            connectivity, np.floor(np.clip(expected_connectivity * 255, 0, 255))
-        )
-        np.testing.assert_array_equal(flow, np.floor(np.clip(expected_flow, 0, 255)))
-
-
-def test_tile_checks(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
-    """Check which tiles are analyzed, and that the inputs' sizes must match.
-
-    - A tile whose mean habitat equals minimum_habitat exactly is analyzed:
-      only a mean below it skips the tile.
-    - Low permeability skips a tile only when there is no habitat, with or
-      without a flow output.
-    - report_progress prints the number of each analyzed tile.
-    - A habitat and permeability of different widths fail.
-    """
-    ones = np.ones((HEIGHT, WIDTH), dtype=np.float32)
-    ones_fn = write_geotiff(tmp_path / "ones.tif", ones)
-
-    # With padding equal to the border and padded with the same value, every
-    # pixel of every tile is 0.5, so the mean is exactly 0.5.
-    half = np.full((HEIGHT, WIDTH), 0.5, dtype=np.float32)
-    at_minimum = Recorder()
-    run_analyze_geotiffs(
-        tmp_path,
-        at_minimum,
-        habitat_fn=write_geotiff(tmp_path / "half.tif", half),
-        permeability_fn=ones_fn,
-        padding_size=BORDER_SIZE,
-        habitat_padding=0.5,
-        minimum_habitat=0.5,
-    )
-    # 3 rows by 4 columns of tiles.
-    assert len(at_minimum.tiles) == 12
-
-    # The left of the input has permeability 0. With 2 rows by 3 columns of
-    # tiles, the first column, with its border (input columns 0-39), has a
-    # mean permeability of 8 / 40 = 0.2, below minimum_habitat; its habitat
-    # has a mean of 1.
-    left_closed = ones.copy()
-    left_closed[:, :32] = 0
-    left_closed_fn = write_geotiff(tmp_path / "left_closed.tif", left_closed)
-    without_habitat = Recorder()
-    run_analyze_geotiffs(
-        tmp_path, without_habitat, permeability_fn=left_closed_fn, minimum_habitat=0.25
-    )
-    assert len(without_habitat.tiles) == 4
-    # The same without a flow output, reporting progress: tiles are numbered
-    # by row, so the skipped first column is tiles 0 and 3.
-    without_flow = Recorder()
-    analyze_geotiffs(
-        permeability_fn=left_closed_fn,
-        analysis_fn=without_flow,
-        tile_size=TILE_SIZE,
-        border_size=BORDER_SIZE,
-        minimum_habitat=0.25,
-        output_repop_fn=str(tmp_path / "without_flow_connectivity.tif"),
-        report_progress=True,
-    )
-    assert len(without_flow.tiles) == 4
-    assert capsys.readouterr().out == "1 2 4 5 \n"
-    with_habitat = Recorder()
-    run_analyze_geotiffs(
-        tmp_path,
-        with_habitat,
-        habitat_fn=ones_fn,
-        permeability_fn=left_closed_fn,
-        minimum_habitat=0.25,
-    )
-    assert len(with_habitat.tiles) == 6
-
-    wider = np.ones((HEIGHT, WIDTH + 1), dtype=np.float32)
-    with pytest.raises(AssertionError, match="same size"):
-        run_analyze_geotiffs(
-            tmp_path,
-            Recorder(),
-            habitat_fn=ones_fn,
-            permeability_fn=write_geotiff(tmp_path / "wider.tif", wider),
-        )
-
-
-def test_flow_on_or_off(tmp_path: Path) -> None:
-    """Check that analyze_geotiffs writes flow only when generate_gradient is
-    True and output_grad_fn is given.
-    """
-    arguments: dict[str, Any] = {
-        "analysis_fn": Recorder(),
-        "permeability_fn": write_geotiff(
-            tmp_path / "permeability.tif", pattern([0.25, 0.5, 1])
-        ),
-        "tile_size": TILE_SIZE,
-        "border_size": BORDER_SIZE,
-    }
-
-    # With generate_gradient=False, the flow file isn't created, even when
-    # output_grad_fn names it.
-    flow_path = tmp_path / "flow.tif"
-    analyze_geotiffs(
-        **arguments,
-        output_repop_fn=str(tmp_path / "flow_off_connectivity.tif"),
-        output_grad_fn=str(flow_path),
-        generate_gradient=False,
-    )
-    assert not flow_path.exists()
-
-    # Without output_grad_fn, only connectivity is written.
-    connectivity_path = tmp_path / "no_flow_file_connectivity.tif"
-    assert analyze_geotiffs(**arguments, output_repop_fn=str(connectivity_path)) == (
-        None,
-        None,
-    )
-    assert (read_geotiff(connectivity_path) > 0).any()
 
 
 def test_compute_connectivity_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Check that compute_connectivity passes each setting on unchanged.
-
-    The test replaces analyze_tile_torch and analyze_geotiffs with mocks, so
-    no simulation runs. Every setting has a value other than its default, and
-    the mocks must receive exactly the expected arguments: a dropped
-    argument would otherwise fall back silently to the inner function's
-    default.
+    """Check that compute_connectivity passes every setting to
+    connectivity_and_flow, and its own defaults.
     """
-    mock_analyze_tile_torch = MagicMock()
-    mock_analyze_geotiffs = MagicMock()
-    monkeypatch.setattr(repopulation, "analyze_tile_torch", mock_analyze_tile_torch)
-    monkeypatch.setattr(repopulation, "analyze_geotiffs", mock_analyze_geotiffs)
+    mock = MagicMock(return_value=None)
+    monkeypatch.setattr(repopulation, "connectivity_and_flow", mock)
     permeability_dict = {1: 0.5}
-    compute_connectivity(
+    result = compute_connectivity(
         habitat_fn="habitat.tif",
         permeability_fn="permeability.tif",
         permeability_scaling=0.5,
@@ -733,6 +453,7 @@ def test_compute_connectivity_forwarding(monkeypatch: pytest.MonkeyPatch) -> Non
         flow_fn="flow.tif",
         gap_crossing=2,
         dispersal=7,
+        num_gaps=5,
         num_simulations=12,
         seed_density=3,
         tile_size=50,
@@ -742,52 +463,191 @@ def test_compute_connectivity_forwarding(monkeypatch: pytest.MonkeyPatch) -> Non
         habitat_padding=0.75,
         minimum_habitat=0.01,
         float_output=False,
+        random_seed=9,
         batch_size=3,
         repopulation_only_in_habitat=False,
         device="cpu",
     )
-    mock_analyze_tile_torch.assert_called_once_with(
-        device="cpu",
-        seed_density=3,
+    assert result == (None, None)
+    mock.assert_called_once_with(
+        habitat_layer="habitat.tif",
+        permeability_layer="permeability.tif",
+        landcover_layer="landcover.tif",
+        permeability_table=permeability_dict,
+        permeability_exponent=0.5,
+        connectivity_layer="connectivity.tif",
+        flow_layer="flow.tif",
         # Flow is computed because flow_fn is given.
-        produce_gradient=True,
-        dispersal=7,
-        batch_size=3,
+        compute_flow=True,
+        dispersal_distance=7,
+        num_gap_crossings=5,
+        # gap_crossing counts the pixels crossed: the distance is one more.
+        gap_crossing_distance=3,
         num_simulations=12,
-        gap_crossing=2,
-        repopulation_only_in_habitat=False,
-    )
-    mock_analyze_geotiffs.assert_called_once_with(
-        habitat_fn="habitat.tif",
-        landcover_fn="landcover.tif",
-        permeability_dictionary=permeability_dict,
-        permeability_fn="permeability.tif",
-        permeability_scaling=0.5,
-        analysis_fn=mock_analyze_tile_torch.return_value,
+        seed_density=3,
+        random_seed=9,
+        batch_size=3,
+        connectivity_only_in_habitat=False,
+        device="cpu",
         tile_size=50,
         border_size=8,
         padding_size=4,
         permeability_padding=0.25,
         habitat_padding=0.75,
-        generate_gradient=True,
+        minimum_tile_habitat=0.01,
+        float_output=False,
+    )
+
+    # The old defaults, and in memory, flow only with generate_flow_memory.
+    mock.reset_mock()
+    compute_connectivity(permeability_fn="permeability.tif", num_gaps=3, in_memory=True)
+    mock.assert_called_once_with(
+        habitat_layer=None,
+        permeability_layer="permeability.tif",
+        landcover_layer=None,
+        permeability_table=None,
+        permeability_exponent=1.0,
+        connectivity_layer=None,
+        flow_layer=None,
+        compute_flow=False,
+        dispersal_distance=None,
+        num_gap_crossings=3,
+        gap_crossing_distance=1,
+        num_simulations=400,
+        seed_density=4,
+        random_seed=None,
+        batch_size=1,
+        connectivity_only_in_habitat=True,
+        device=None,
+        tile_size=1000,
+        border_size=100,
+        padding_size=0,
+        permeability_padding=0,
+        habitat_padding=0,
+        minimum_tile_habitat=1e-4,
+        float_output=True,
+    )
+
+
+def test_analyze_geotiffs_forwarding(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that analyze_geotiffs passes every setting to analyze_tiles, and
+    its own defaults, which differ from analyze_tiles': tiles of 1024, a
+    border of 64, and integer output.
+    """
+    mock = MagicMock(return_value=None)
+    monkeypatch.setattr(repopulation, "analyze_tiles", mock)
+    analysis = Recorder()
+    permeability_dictionary = {1: 0.5}
+    result = analyze_geotiffs(
+        habitat_fn="habitat.tif",
+        landcover_fn="landcover.tif",
+        permeability_dictionary=permeability_dictionary,
+        permeability_fn="permeability.tif",
+        permeability_scaling=0.5,
+        analysis_fn=analysis,
+        tile_size=50,
+        border_size=8,
+        padding_size=4,
+        permeability_padding=0.25,
+        habitat_padding=0.75,
+        generate_gradient=False,
         minimum_habitat=0.01,
         output_repop_fn="connectivity.tif",
         output_grad_fn="flow.tif",
-        float_output=False,
-        in_memory=False,
+        report_progress=True,
+        float_output=True,
+    )
+    assert result == (None, None)
+    mock.assert_called_once_with(
+        analysis,
+        habitat_layer="habitat.tif",
+        permeability_layer="permeability.tif",
+        landcover_layer="landcover.tif",
+        permeability_table=permeability_dictionary,
+        permeability_exponent=0.5,
+        connectivity_layer="connectivity.tif",
+        flow_layer="flow.tif",
+        # No flow, even with output_grad_fn, without generate_gradient.
+        compute_flow=False,
+        tile_size=50,
+        border_size=8,
+        padding_size=4,
+        permeability_padding=0.25,
+        habitat_padding=0.75,
+        minimum_tile_habitat=0.01,
+        float_output=True,
+        report_progress=True,
     )
 
-    # Without dispersal, it is (1 + gap_crossing) * num_gaps pixels.
-    compute_connectivity(permeability_fn="permeability.tif", gap_crossing=2, num_gaps=3)
-    assert mock_analyze_tile_torch.call_args.kwargs["dispersal"] == 9
+    # The old defaults; in memory, flow by default.
+    mock.reset_mock()
+    analyze_geotiffs(
+        permeability_fn="permeability.tif", analysis_fn=analysis, in_memory=True
+    )
+    mock.assert_called_once_with(
+        analysis,
+        habitat_layer=None,
+        permeability_layer="permeability.tif",
+        landcover_layer=None,
+        permeability_table=None,
+        permeability_exponent=1.0,
+        connectivity_layer=None,
+        flow_layer=None,
+        compute_flow=True,
+        tile_size=1024,
+        border_size=64,
+        padding_size=0,
+        permeability_padding=0,
+        habitat_padding=0,
+        minimum_tile_habitat=1e-4,
+        float_output=False,
+        report_progress=False,
+    )
+
+
+def test_wrapper_checks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check the wrappers' warnings and errors:
+
+    - each warns that it is deprecated, naming its replacement;
+    - display_tiles warns that it is ignored;
+    - on disk, each needs a connectivity output, and analyze_geotiffs an
+      analysis function.
+    """
+    monkeypatch.setattr(repopulation, "connectivity_and_flow", MagicMock())
+    monkeypatch.setattr(repopulation, "analyze_tiles", MagicMock())
+    with pytest.warns(FutureWarning, match="use connectivity_and_flow"):
+        compute_connectivity(permeability_fn="p.tif", connectivity_fn="c.tif")
+    with pytest.warns(FutureWarning, match="use analyze_tiles"):
+        analyze_geotiffs(
+            permeability_fn="p.tif", analysis_fn=Recorder(), output_repop_fn="c.tif"
+        )
+    with pytest.warns(FutureWarning, match="display_tiles"):
+        analyze_geotiffs(
+            permeability_fn="p.tif",
+            analysis_fn=Recorder(),
+            output_repop_fn="c.tif",
+            display_tiles=True,
+        )
+    with (
+        pytest.warns(FutureWarning),
+        pytest.raises(ValueError, match="connectivity_fn"),
+    ):
+        compute_connectivity(permeability_fn="p.tif")
+    with (
+        pytest.warns(FutureWarning),
+        pytest.raises(ValueError, match="output_repop_fn"),
+    ):
+        analyze_geotiffs(permeability_fn="p.tif", analysis_fn=Recorder())
+    with pytest.warns(FutureWarning), pytest.raises(ValueError, match="analysis_fn"):
+        analyze_geotiffs(permeability_fn="p.tif", output_repop_fn="c.tif")
 
 
 """
 compute_connectivity and analyze_geotiffs accept each input as a file name or
-as an open scgt GeoTiff. Each test opens a GeoTiff from a file and checks
-that:
-- compute_connectivity, with analyze_geotiffs replaced by a mock, passes the
-  GeoTiff on unchanged;
+as an open scgt GeoTiff, or any object with a rasterio dataset in .dataset.
+Each test opens a GeoTiff from a file and checks that:
+- compute_connectivity, with connectivity_and_flow replaced by a mock, passes
+  the GeoTiff on as its file's path;
 - analyze_geotiffs, with a fake analysis, gives the same output for the
   GeoTiff as for its file name.
 """
@@ -797,28 +657,38 @@ def check_geotiff_input(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     argument: str,
+    layer: str,
     path: str,
     compute_inputs: dict[str, Any],
     analyze_inputs: dict[str, Any],
 ) -> None:
-    """Check that argument can be a GeoTiff opened from path.
+    """Check that argument can be a GeoTiff opened from path, which reaches
+    the new code as layer.
 
     compute_inputs and analyze_inputs are the other inputs that
     compute_connectivity and analyze_geotiffs need.
     """
-    mock_analyze_geotiffs = MagicMock()
-    monkeypatch.setattr(repopulation, "analyze_geotiffs", mock_analyze_geotiffs)
+    mock_connectivity_and_flow = MagicMock(return_value=None)
+    monkeypatch.setattr(
+        repopulation, "connectivity_and_flow", mock_connectivity_and_flow
+    )
     by_file_name = run_analyze_geotiffs(
         tmp_path, Recorder(), **{argument: path}, **analyze_inputs
     )
-    with GeoTiff.from_file(path) as geotiff:
-        compute_connectivity(
-            **{argument: geotiff}, **compute_inputs, dispersal=5, device="cpu"
-        )
-        assert mock_analyze_geotiffs.call_args.kwargs[argument] is geotiff
-        by_geotiff = run_analyze_geotiffs(
-            tmp_path, Recorder(), **{argument: geotiff}, **analyze_inputs
-        )
+    geotiff = GeoTiff.from_file(path)
+    compute_connectivity(
+        **{argument: geotiff},
+        **compute_inputs,
+        connectivity_fn="connectivity.tif",
+        dispersal=5,
+    )
+    assert mock_connectivity_and_flow.call_args.kwargs[layer] == path
+    by_geotiff = run_analyze_geotiffs(
+        tmp_path, Recorder(), **{argument: geotiff}, **analyze_inputs
+    )
+    # Closes the dataset directly: closing an integer GeoTiff with a with
+    # statement writes a raster attribute table into the file.
+    geotiff.dataset.close()
     for output_by_file_name, output_by_geotiff in zip(
         by_file_name, by_geotiff, strict=True
     ):
@@ -836,6 +706,7 @@ def test_habitat_geotiff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
         tmp_path,
         monkeypatch,
         "habitat_fn",
+        "habitat_layer",
         write_geotiff(tmp_path / "habitat.tif", pattern([0, 1, 1], dtype=np.uint8)),
         compute_inputs={"permeability_fn": permeability_fn},
         analyze_inputs={"permeability_fn": permeability_fn},
@@ -849,6 +720,7 @@ def test_landcover_geotiff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         tmp_path,
         monkeypatch,
         "landcover_fn",
+        "landcover_layer",
         write_geotiff(tmp_path / "landcover.tif", pattern([1, 2, 3], dtype=np.uint8)),
         compute_inputs={"permeability_dict": permeability_dict},
         analyze_inputs={"permeability_dictionary": permeability_dict},
@@ -861,7 +733,21 @@ def test_permeability_geotiff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         tmp_path,
         monkeypatch,
         "permeability_fn",
+        "permeability_layer",
         write_geotiff(tmp_path / "permeability.tif", pattern([0.25, 0.5, 1])),
         compute_inputs={},
         analyze_inputs={},
     )
+
+
+def test_dataset_stand_in(tmp_path: Path) -> None:
+    """Check that any object with a rasterio dataset in .dataset works as an
+    input, as a caller's scgt GeoTiff does, without EcoScape importing scgt.
+    """
+    path = write_geotiff(tmp_path / "permeability.tif", pattern([0.25, 0.5, 1]))
+    by_file_name = run_analyze_geotiffs(tmp_path, Recorder(), permeability_fn=path)
+    with rasterio.open(path) as dataset:
+        by_stand_in = run_analyze_geotiffs(
+            tmp_path, Recorder(), permeability_fn=SimpleNamespace(dataset=dataset)
+        )
+    np.testing.assert_array_equal(by_stand_in[0], by_file_name[0])

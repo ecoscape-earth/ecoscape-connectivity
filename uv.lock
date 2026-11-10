@@ -941,6 +941,7 @@ dependencies = [
     { name = "rasterio" },
     { name = "scgt" },
     { name = "torch" },
+    { name = "typing-extensions" },
 ]
 
 [package.dev-dependencies]
@@ -962,6 +963,7 @@ requires-dist = [
     { name = "rasterio", specifier = ">=1.5.2" },
     { name = "scgt", specifier = ">=0.0.32" },
     { name = "torch", specifier = ">=2.14.1" },
+    { name = "typing-extensions", specifier = ">=4.16.0" },
 ]
 
 [package.metadata.requires-dev]

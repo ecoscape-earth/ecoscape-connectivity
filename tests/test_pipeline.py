@@ -250,10 +250,10 @@ def test_map_position(
 
 
 def test_in_memory(landscape: dict[str, Any]) -> None:
-    """Check that in_memory=True returns open, readable outputs, with flow
+    """Check that in_memory=True returns the layers as arrays, with flow
     when generate_flow_memory is True.
     """
-    connectivity, flow = ecoscape_connectivity.compute_connectivity(
+    layers = ecoscape_connectivity.compute_connectivity(
         tile_size=40,
         border_size=BORDER_SIZE,
         dispersal=5,
@@ -264,8 +264,7 @@ def test_in_memory(landscape: dict[str, Any]) -> None:
         generate_flow_memory=True,
         **landscape,
     )
-    assert connectivity is not None
-    assert flow is not None
-    with connectivity, flow:
-        assert (connectivity.dataset.read(1) > 0).any()
-        assert (flow.dataset.read(1) > 0).any()
+    assert isinstance(layers, ecoscape_connectivity.ConnectivityLayers)
+    assert layers.flow is not None
+    assert (layers.connectivity > 0).any()
+    assert (layers.flow > 0).any()

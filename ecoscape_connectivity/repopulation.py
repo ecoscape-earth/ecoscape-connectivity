@@ -1,35 +1,49 @@
-# Standard imports
-from collections.abc import Callable, Iterator
-from contextlib import nullcontext
-from typing import Any
+"""Deprecated entry points, kept so existing code keeps working.
 
-import numpy as np
+compute_connectivity and analyze_geotiffs translate their arguments and call
+connectivity_and_flow and analyze_tiles in connectivity.py, which take paths
+and use the paper's parameter names. They keep their own defaults, so their
+results don't change.
+"""
+
+import warnings
+from typing import Any, Protocol
+
 import torch
-from osgeo import gdal
+from typing_extensions import deprecated
 
-# Our imports
-from scgt import GeoTiff
-from torch import nn
-
-from .util import SingleIterator, dict_translate
-
-gdal.UseExceptions()
-
-# A dispersal distance in pixels, or a function that samples one, such as
-# distributions.half_cauchy.
-type Dispersal = float | Callable[[], float]
-# Takes habitat and permeability tiles, and returns connectivity and flow.
-type AnalysisFunction = Callable[
-    [np.ndarray, np.ndarray],
-    tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
-]
+from .connectivity import ConnectivityLayers, analyze_tiles, connectivity_and_flow
+from .util import AnalysisFunction, Dispersal
 
 
+class GeoTiffLike(Protocol):
+    """An object holding an open rasterio dataset, such as a scgt GeoTiff."""
+
+    dataset: Any
+
+
+def _layer_path(layer: str | GeoTiffLike | None) -> str | None:
+    """Return the path of a layer given as a path or a GeoTiff.
+
+    A GeoTiff's dataset knows its path, for a file on disk or in memory.
+    """
+    if layer is None or isinstance(layer, str):
+        return layer
+    return layer.dataset.name
+
+
+# FutureWarning, unlike DeprecationWarning, shows by default in notebooks and
+# scripts; the decorator also flags calls in editors and type checkers.
+@deprecated(
+    "compute_connectivity is deprecated: use connectivity_and_flow, which "
+    "takes paths and the paper's parameter names.",
+    category=FutureWarning,
+)
 def compute_connectivity(
-    habitat_fn: str | GeoTiff | None = None,
-    permeability_fn: str | GeoTiff | None = None,
+    habitat_fn: str | GeoTiffLike | None = None,
+    permeability_fn: str | GeoTiffLike | None = None,
     permeability_scaling: float = 1.0,
-    landcover_fn: str | GeoTiff | None = None,
+    landcover_fn: str | GeoTiffLike | None = None,
     permeability_dict: dict[int, float] | None = None,
     connectivity_fn: str | None = None,
     flow_fn: str | None = None,
@@ -51,9 +65,14 @@ def compute_connectivity(
     generate_flow_memory: bool = False,
     repopulation_only_in_habitat: bool = True,
     device: str | torch.device | None = None,
-) -> tuple[GeoTiff | None, GeoTiff | None]:
+) -> tuple[None, None] | ConnectivityLayers:
     """
-    Function that computes the connectivity. This is the main function in the module.
+    Function that computes the connectivity.
+
+    .. deprecated::
+        Use connectivity_and_flow, which takes paths and the paper's parameter
+        names, and gives the same results. compute_connectivity calls it.
+
     The outputs are encoded as follows:
 
     If floating point output is selected:
@@ -68,7 +87,7 @@ def compute_connectivity(
 
     Integer output saves space, but floating point output is more accurate and intuitive to use.
 
-    :param habitat_fn: name of habitat geotiff, or GeoTiff (from the scgt packaage) object from habitat geotiff. This file must contain
+    :param habitat_fn: name of habitat geotiff, or GeoTiff (from the scgt package) object from habitat geotiff. This file must contain
         0 = non habitat, and 1 = habitat.
         If this file is missing, then it is assumed that everywhere is suitable habitat, and that
         only the permeability determines possible movement. This is useful for modeling mammals.
@@ -114,11 +133,9 @@ def compute_connectivity(
     :param random_seed: seed for PyTorch's random number generator, which every random choice
         in the simulation uses, including half_cauchy dispersal. The same inputs and seed give
         identical results on the same device with the same PyTorch version.
-    :param in_memory: whether the connectivity and flow should be saved in memory only.
-        If so, then the files are not saved to disk. Because such files would be deleted on close,
-        the open memory files will be returned as (repop_file, grad_file). Note that the parameters
-        connectivity_fn and flow_fn are ignored if this is set to True, and at least connectivity
-        will be returned. Flow is also generated only if generate_flow_memory is True.
+    :param in_memory: whether the connectivity and flow should be computed in memory only.
+        If so, then the files are not saved to disk, and connectivity_fn and flow_fn are
+        ignored. Flow is generated only if generate_flow_memory is True.
     :param generate_flow_memory: whether the flow should be generated in memory. Only used if
         in_memory is True.
     :param float_output: use floating point output, generating a floating point tiff.
@@ -126,296 +143,53 @@ def compute_connectivity(
         That's the default.  If False, the repopulation can be non-zero all over the output raster.
     :param device: the device to be used for the computation. If None, then the device is chosen
         automatically.  Valid values include: 'cpu', 'cuda', 'mps'.
-    :return: (None, None) if in_memory is False, (repop_file, grad_file) if in_memory is True.
-        If in_memory is True, use the returned files in a with statement, which closes them
-        once they are not needed anymore; flow is None if generate_flow_memory is False.
+    :return: (None, None) if in_memory is False; if in_memory is True, a ConnectivityLayers
+        with the connectivity and flow arrays and their rasterio profile; flow is None if
+        generate_flow_memory is False.
     """
-    assert habitat_fn is None or type(habitat_fn) == str or type(habitat_fn) == GeoTiff
-    assert landcover_fn is not None or permeability_fn is not None
-    assert landcover_fn is None or permeability_dict is not None
-    assert (
-        landcover_fn is None
-        or type(landcover_fn) == str
-        or type(landcover_fn) == GeoTiff
-    )
-    assert (
-        permeability_fn is None
-        or type(permeability_fn) == str
-        or type(permeability_fn) == GeoTiff
-    )
-
-    if random_seed is not None:
-        torch.manual_seed(random_seed)
-    if dispersal is None:
-        assert num_gaps is not None, (
-            "One of dispersal and gap crossing should be specified."  # pragma: no mutate
-        )
-        dispersal = (1 + gap_crossing) * num_gaps
-    # Builds the analysis function.
-    analysis_function = analyze_tile_torch(
-        device=device,
-        seed_density=seed_density,
-        produce_gradient=(
-            flow_fn is not None if not in_memory else generate_flow_memory
-        ),
-        dispersal=dispersal,
-        batch_size=batch_size,
+    if not in_memory and connectivity_fn is None:
+        raise ValueError("Give connectivity_fn, or set in_memory to True.")
+    layers = connectivity_and_flow(
+        habitat_layer=_layer_path(habitat_fn),
+        permeability_layer=_layer_path(permeability_fn),
+        landcover_layer=_layer_path(landcover_fn),
+        permeability_table=permeability_dict,
+        permeability_exponent=permeability_scaling,
+        connectivity_layer=None if in_memory else connectivity_fn,
+        flow_layer=None if in_memory else flow_fn,
+        compute_flow=generate_flow_memory if in_memory else flow_fn is not None,
+        dispersal_distance=dispersal,
+        num_gap_crossings=num_gaps,
+        # gap_crossing counts the pixels crossed; the paper's gap-crossing
+        # distance is one more.
+        gap_crossing_distance=gap_crossing + 1,
         num_simulations=num_simulations,
-        gap_crossing=gap_crossing,
-        repopulation_only_in_habitat=repopulation_only_in_habitat,
-    )
-
-    # Applies it.
-    return analyze_geotiffs(
-        habitat_fn=habitat_fn,
-        landcover_fn=landcover_fn,
-        permeability_dictionary=permeability_dict,
-        permeability_fn=permeability_fn,
-        permeability_scaling=permeability_scaling,
-        analysis_fn=analysis_function,
+        seed_density=seed_density,
+        random_seed=random_seed,
+        batch_size=batch_size,
+        connectivity_only_in_habitat=repopulation_only_in_habitat,
+        device=device,
         tile_size=tile_size,
         border_size=border_size,
         padding_size=padding_size,
         permeability_padding=permeability_padding,
         habitat_padding=habitat_padding,
-        generate_gradient=(
-            flow_fn is not None if not in_memory else generate_flow_memory
-        ),
-        minimum_habitat=minimum_habitat,
-        output_repop_fn=connectivity_fn,
-        output_grad_fn=flow_fn,
+        minimum_tile_habitat=minimum_habitat,
         float_output=float_output,
-        in_memory=in_memory,
     )
+    return layers if layers is not None else (None, None)
 
 
-class RandomPropagate(nn.Module):
-    """
-    Important: THIS is the function to use in the repopulation experiments.
-    This module models the repopulation of the habitat from a chosen percentage
-    of the seed places.  The terrain and habitat are parameters, and the input is a
-    similarly sized 0-1 (float) tensor of seed points."""
-
-    def __init__(
-        self,
-        habitat: torch.Tensor,
-        terrain: torch.Tensor,
-        num_spreads: int = 100,
-        spread_size: int = 1,
-        device: str | torch.device | None = None,
-        update_threshold: float = 0.05,
-        coin_toss_probability: float = 0.5,
-    ) -> None:
-        """
-        :param habitat: torch tensor (2-dim) representing the habitat.
-        :param terrain: torch tensor (2-dim) representing the terrain.
-        :param num_spreads: number of bird spreads to use.  This is
-            the number of kernel spreads, in which birds that move by
-            spread_size pixels.
-        :param spread_size: by how much (in pixels) birds spread in each spread.
-            This is 1 + gap_crossing.
-        :param device: device to use for computation (cpu, cuda, mps, etc).
-        """
-        super().__init__()
-        # spread_size and num_spreads have to be integers, not callables here.
-        self.device = device or torch.device("cpu")
-        assert type(spread_size) == int, (
-            "spread_size must be an int"  # pragma: no mutate
-        )
-        assert type(num_spreads) == int, (
-            "num_spreads must be an int"  # pragma: no mutate
-        )
-        self.habitat = habitat
-        self.goodness = torch.nn.Parameter(terrain, requires_grad=True)
-        self.h, self.w = habitat.shape
-        self.num_spreads = num_spreads
-        self.spread_size = spread_size
-        # Defines spread operator.
-        self.min_transmission = 1e-4
-        self.update_threshold = update_threshold
-        self.coin_toss_probability = coin_toss_probability
-        self.kernel_size = 1 + 2 * spread_size
-        self.spreader = torch.nn.MaxPool2d(
-            self.kernel_size, stride=1, padding=spread_size
-        )
-
-    def forward(self, seed: torch.Tensor) -> torch.Tensor:
-        """
-        seed: a 0-1 (float) tensor of seed points.
-        """
-        # First, we multiply the seed by the habitat, to confine the seeds to
-        # where birds can live.
-        x = seed * self.habitat * self.goodness
-        if x.ndim < 3:
-            # We put it into shape (1, w, h) because the pooling operator expects this.
-            x = torch.unsqueeze(x, dim=0)
-        # Now we must propagate n times.
-        empty_spreads = 0
-        for i in range(self.num_spreads):
-            xx = x
-            # Randomizes the source.
-            x = x * (
-                1 - self.min_transmission + self.min_transmission * torch.rand_like(x)
-            )
-            # Then, we propagate.
-            x = self.spreader(x)
-            # Coin-flip at destination.
-            x = x * (torch.rand_like(x) > self.coin_toss_probability)
-            x = x * self.goodness
-            # And finally we combine the results.
-            delta = x - xx
-            x = x * (delta > self.update_threshold)
-            x = torch.maximum(x, xx)
-            if torch.sum(delta) == 0:
-                empty_spreads += 1
-            else:
-                empty_spreads = 0
-            if empty_spreads > 4:
-                break
-        if seed.ndim < 3:
-            x = torch.squeeze(x, dim=0)
-        return x
-
-    def get_grad(self) -> torch.Tensor:
-        assert self.goodness.grad is not None, (
-            "Call backward() before get_grad()."  # pragma: no mutate
-        )
-        return self.goodness.grad * self.goodness
-
-
-###############################################################################
-# Analyze geotiff and tile.
-
-
-def analyze_tile_torch(
-    device: str | torch.device | None = None,
-    analysis_class: type[RandomPropagate] = RandomPropagate,
-    seed_density: float = 4.0,
-    produce_gradient: bool = False,
-    batch_size: int = 1,
-    dispersal: Dispersal = 20,
-    num_simulations: int = 100,
-    gap_crossing: int = 0,
-    repopulation_only_in_habitat: bool = True,
-) -> Callable[[np.ndarray, np.ndarray], tuple[torch.Tensor, torch.Tensor]]:
-    """This is the function that performs the analysis on a single tile.
-    The input and output to this function are in cpu, but the computation occurs in
-    the specified device.
-    :param device: the device to be used, e.g., cpu, cuda, mps.
-    :param analysis_class: class to be used for the analysis.  We recommend RandomPropagate.
-        You can change this if you wish to experiment with different classes.
-    :param seed_density: Consider a square of edge (1 + 2 * dispersal) pixels.
-        In that square, there will be seed_density seeds on average.
-    :param produce_gradient: boolean, whether to produce a gradient as result or not.
-    :param batch_size: batch size for GPU calculations. For speed, use the largest
-        batch size that fits in memory.
-    :param dispersal: dispersal distance in pixels.
-        As above, if this is an integer, we do this constanst number of spreads
-        for all batches. Otherwise, If this is of the form of a function
-        (probability distribution), we run the function (and sample the distribution)
-        to get the dispersal distance.
-    :param num_simulations: number of simulations to run. Must be a multiple of batch_size.
-    :param gap_crossing: maximum number of pixels a bird can jump. 0 means only contiguous pixels.
-    :param repopulation_only_in_habitat: if True, then the repopulation only occurs in the habitat.
-        If False, the repopulation can be non-zero all over the output raster.
-    """
-
-    # The device depends on the machine, so tests pass device="cpu" and
-    # mutmut leaves this alone. Checking for MPS in a forked process, as
-    # mutmut runs tests, crashes on macOS.
-    # pragma: no mutate start
-    device = device or (
-        torch.device("cuda")
-        if torch.cuda.is_available()
-        else torch.device("mps")
-        if torch.backends.mps.is_available()
-        else torch.device("cpu")
-    )
-    # pragma: no mutate end
-
-    assert type(gap_crossing) == int, (
-        "gap_crossing must be an int"  # pragma: no mutate
-    )
-
-    # Computes the seed probability
-    # seed_probability =  seed_density / ((2 * hop_length * total_spreads) ** 2)
-
-    def f(
-        habitat: np.ndarray, terrain: np.ndarray
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        _, w, h = habitat.shape
-        assert habitat.shape == terrain.shape, (
-            "Habitat and terrain must have the same shape."  # pragma: no mutate
-        )
-        # We may need to do multiple spreads if the batch size is smaller than the total spreads.
-        assert num_simulations % batch_size == 0, (
-            "Simulations not multiples of batch"  # pragma: no mutate
-        )
-        num_batches = num_simulations // batch_size
-        tot_grad = torch.zeros((1, w, h), dtype=torch.float, device=device)
-        tot_pop = torch.zeros((1, w, h), dtype=torch.float, device=device)
-        hab = torch.tensor(
-            habitat.astype(float), requires_grad=False, dtype=torch.float, device=device
-        ).view(w, h)
-        ter = torch.tensor(
-            terrain.astype(float), requires_grad=False, dtype=torch.float, device=device
-        ).view(w, h)
-        # If the num_spreads and spread_size are constant, then we can use a fixed repopulator, which is more efficient.
-        if not callable(dispersal):
-            num_spreads = int(0.5 + dispersal / (gap_crossing + 1))
-            repopulator = analysis_class(
-                hab,
-                ter,
-                num_spreads=num_spreads,
-                spread_size=gap_crossing + 1,
-                device=device,
-            ).to(device)
-        for i in range(num_batches):
-            # Decides on the total spread and hop length.
-            spread_size = 1 + gap_crossing
-            dispersal_tmp = dispersal() if callable(dispersal) else dispersal
-            num_spreads = int(0.5 + dispersal_tmp / spread_size)
-            if callable(dispersal):
-                repopulator = analysis_class(
-                    hab,
-                    ter,
-                    num_spreads=num_spreads,
-                    spread_size=spread_size,
-                    device=device,
-                ).to(device)
-            # Creates the seeds.
-            seed_probability = seed_density / ((1 + 2 * dispersal_tmp) ** 2)
-            seeds = torch.rand((batch_size, w, h), device=device) < seed_probability
-            ## Sample the hop and spreads if necessary.
-            # And passes them through the repopulation.
-            pop = repopulator(seeds)
-            if repopulation_only_in_habitat:
-                pop *= hab
-            # We need to take the mean over each batch.  This will tell us what is the
-            # average repopulation.
-            tot_pop += torch.mean(pop, 0)
-            # This is the sum across all batches.  So, the gradient will be for the total
-            # of the batch. This is why the gradient will need to be divided by the number
-            # of simulations.
-            if produce_gradient:
-                q = torch.sum(pop / num_batches)
-                q.backward()
-                tot_grad += repopulator.get_grad()
-        # Normalizes by number of batches.
-        avg_pop, avg_grad = tot_pop / num_batches, tot_grad / num_simulations
-        return avg_pop.to("cpu"), avg_grad.to("cpu")
-
-    if not produce_gradient:
-        # We remove all memory/time requirements due to gradient computation.
-        f = torch.no_grad()(f)
-    return f
-
-
+@deprecated(
+    "analyze_geotiffs is deprecated: use analyze_tiles, which takes paths "
+    "and the paper's parameter names.",
+    category=FutureWarning,
+)
 def analyze_geotiffs(
-    habitat_fn: str | GeoTiff | None = None,
-    landcover_fn: str | GeoTiff | None = None,
+    habitat_fn: str | GeoTiffLike | None = None,
+    landcover_fn: str | GeoTiffLike | None = None,
     permeability_dictionary: dict[int, float] | None = None,
-    permeability_fn: str | GeoTiff | None = None,
+    permeability_fn: str | GeoTiffLike | None = None,
     permeability_scaling: float = 1.0,
     analysis_fn: AnalysisFunction | None = None,
     tile_size: int = 1024,
@@ -431,11 +205,15 @@ def analyze_geotiffs(
     report_progress: bool = False,
     in_memory: bool = False,
     float_output: bool = False,
-) -> tuple[GeoTiff | None, GeoTiff | None]:
+) -> tuple[None, None] | ConnectivityLayers:
     """
     Reads a geotiff (or better, a pair of habitat and terrain geotiffs),
     iterating over the tiles, analyzing it with a specified analysis function,
     and then writing the results back.
+
+    .. deprecated::
+        Use analyze_tiles, which takes paths and the paper's parameter names,
+        and gives the same results. analyze_geotiffs calls it.
 
     :param habitat_fn: filename of habitat geotiff, or GeoTiff object from habitat geotiff
     :param landcover_fn: filename of terrain geotiff, or GeoTiff object from terrain geotiff
@@ -453,228 +231,46 @@ def analyze_geotiffs(
         except that a border of size border_size - padding_size is trimmed all around it.
     :param permeability_padding: value to be used to pad the permeability.
     :param habitat_padding: value to be used to pad the habitat.
-    :param include_border: whether to include the border in the output or not.
-    :param display_tiles: True, to display tiles, or list of tiles interesting enough to display.
+    :param generate_gradient: whether to compute the flow.
+    :param display_tiles: no longer supported, and ignored with a warning.
     :param minimum_habitat: minimum average of habitat to skip the tile.
-    :param output_grad: file path for outputting the grad tif file.
-    :param output_repop: file path for outputting the repop tif file.
-        For this and output_grad, if None, then no file is generated.
-    :param in_memory: whether the connectivity and flow should be saved in memory only. If so, then
-        the files are not saved to disk, so the open files for connectivity and flow are returned.
+    :param output_repop_fn: file path for the connectivity output.
+    :param output_grad_fn: file path for the flow output; if None, no flow is written.
+    :param report_progress: whether to print the number of each tile analyzed.
+    :param in_memory: whether the connectivity and flow should be computed in memory only.
+        If so, then the files are not saved to disk.
     :param float_output: whether the output should be in floating point (True) or integer (False).
         If integer, values are rescaled to 0..255.
+    :return: (None, None) if in_memory is False; if in_memory is True, a ConnectivityLayers
+        with the connectivity and flow arrays and their rasterio profile.
     """
-    assert analysis_fn is not None, (
-        "analysis_fn is required."  # pragma: no mutate
+    if analysis_fn is None:
+        raise ValueError("analysis_fn is required.")
+    if not in_memory and output_repop_fn is None:
+        raise ValueError("Give output_repop_fn, or set in_memory to True.")
+    if display_tiles:
+        warnings.warn(
+            "display_tiles is no longer supported, and is ignored.",
+            FutureWarning,
+            stacklevel=2,
+        )
+    layers = analyze_tiles(
+        analysis_fn,
+        habitat_layer=_layer_path(habitat_fn),
+        permeability_layer=_layer_path(permeability_fn),
+        landcover_layer=_layer_path(landcover_fn),
+        permeability_table=permeability_dictionary,
+        permeability_exponent=permeability_scaling,
+        connectivity_layer=None if in_memory else output_repop_fn,
+        flow_layer=None if in_memory else output_grad_fn,
+        compute_flow=generate_gradient and (in_memory or output_grad_fn is not None),
+        tile_size=tile_size,
+        border_size=border_size,
+        padding_size=padding_size,
+        permeability_padding=permeability_padding,
+        habitat_padding=habitat_padding,
+        minimum_tile_habitat=minimum_habitat,
+        float_output=float_output,
+        report_progress=report_progress,
     )
-    if display_tiles is False:
-        display_tiles = []
-
-    compute_flow = generate_gradient and (
-        output_grad_fn is not None if not in_memory else True
-    )
-    habitat_geotiff = None
-    if habitat_fn is not None:
-        habitat_geotiff = (
-            GeoTiff.from_file(habitat_fn) if isinstance(habitat_fn, str) else habitat_fn
-        )
-    # We specify permeability either via a terrain and a dictionary, or via a permeability file
-    # with scaling.  In either case, we have a permeability geotiff, which we then have to
-    # either scale or process via a dictionary.
-    if permeability_fn is not None:
-        # We are directly given a permeability file, which we scale via a constant.
-        permeability_via_dictionary = False
-        permeability_geotiff = (
-            GeoTiff.from_file(permeability_fn)
-            if isinstance(permeability_fn, str)
-            else permeability_fn
-        )
-    else:
-        # We use terrain and dictionary.
-        permeability_via_dictionary = True
-        assert permeability_dictionary is not None, (
-            "permeability_dictionary is required with landcover_fn."  # pragma: no mutate
-        )
-        scaled_dictionary = {
-            k: np.clip(v**permeability_scaling, 0, 1)
-            for k, v in permeability_dictionary.items()
-        }
-        permeability_geotiff = (
-            GeoTiff.from_file(landcover_fn)
-            if isinstance(landcover_fn, str)
-            else landcover_fn
-        )
-
-    # Checks that the habitat and permeability have the same size.
-    if habitat_geotiff is not None:
-        assert (
-            habitat_geotiff.width == permeability_geotiff.width
-            and habitat_geotiff.height == permeability_geotiff.height
-        ), (
-            "Habitat and permeability must have the same size."  # pragma: no mutate
-        )
-
-    def do_analysis(conn_file: GeoTiff | None, flow_file: GeoTiff | None) -> None:
-        # Reads the files.
-        # Iterates through the tiles.
-        per_reader = permeability_geotiff.get_reader(
-            b=border_size,
-            p=padding_size,
-            w=tile_size,
-            h=tile_size,
-            pad_value=permeability_padding,
-        )
-        # Pairs of (habitat tile or None, permeability tile). Tiles are scgt
-        # Tile objects, which have no type information.
-        joint_reader: Iterator[tuple[Any, Any]]
-        if habitat_geotiff is None:
-            # We create a reader where the habitat is always None.
-            joint_reader = SingleIterator(per_reader)
-        else:
-            hab_reader = habitat_geotiff.get_reader(
-                b=border_size,
-                p=padding_size,
-                w=tile_size,
-                h=tile_size,
-                pad_value=habitat_padding,
-            )
-            joint_reader = zip(hab_reader, per_reader)
-        # We process each tile.
-        for i, (hab_tile_iter, per_tile_iter) in enumerate(joint_reader):
-            # print("Habitat tile:", "w:", hab_tile_iter.w, "h:", hab_tile_iter.h, "b:", hab_tile_iter.b, "c:", hab_tile_iter.c, "x:", hab_tile_iter.x, "y:", hab_tile_iter.y)
-            # print("Habitat tile shape", hab_tile_iter.m.shape)
-            # print("Permeability tile:", "w:", per_tile_iter.w, "h:", per_tile_iter.h, "b:", per_tile_iter.b, "c:", per_tile_iter.c, "x:", per_tile_iter.x, "y:", per_tile_iter.y)
-            # print("Permeability tile shape", per_tile_iter.m.shape)
-            habitat = (
-                np.clip(np.nan_to_num(hab_tile_iter.m), 0, 1)
-                if hab_tile_iter is not None
-                else None
-            )  # Habitat tile
-            raw_permeability = np.nan_to_num(per_tile_iter.m)  # Raw Permeability tile
-            # Drawing isn't tested, so mutmut leaves it alone.
-            if display_tiles is True or i in display_tiles:  # pragma: no mutate block
-                if habitat is not None:
-                    hab_tile_iter.draw_tile(title="Habitat tile")
-                per_tile_iter.draw_tile(title="Terrain tile")
-            # We skip a tile if:
-            # - the habitat is not None, and too low, or,
-            # - the habitat is None, and the permeability is too low.
-            skip_tile = False
-            if habitat is not None:
-                skip_tile = np.mean(habitat) < minimum_habitat
-            if not skip_tile:
-                # Scales the permeability.
-                if permeability_via_dictionary:
-                    permeability = dict_translate(
-                        raw_permeability, scaled_dictionary, default_val=0
-                    )
-                else:
-                    raw_permeability = np.clip(raw_permeability, 0, 1)
-                    # Scales the permeability.
-                    permeability = raw_permeability**permeability_scaling
-                # Checks whether we have to skip due to low permeability.
-                if habitat is None:
-                    skip_tile = np.mean(permeability) < minimum_habitat
-            if skip_tile:
-                if conn_file is not None:
-                    # These lines are here just to fix a bug into the production of the output geotiff,
-                    # which does not set all to zero before the output is done.
-                    conn_tile = per_tile_iter.clone_shape()
-                    conn_file.set_tile(conn_tile, offset=border_size - padding_size)
-                    if flow_file is not None:
-                        flow = per_tile_iter.clone_shape()
-                        flow_file.set_tile(flow, offset=border_size - padding_size)
-                continue
-            # We process the tile.
-            connectivity, flow = analysis_fn(
-                np.ones_like(permeability) if habitat is None else habitat, permeability
-            )
-            # Normalizes the tiles, to fit into the geotiff format.
-            # The population is simply normalized with a max of 255. After all it is in [0, 1].
-            # We need to use type float because clam is not implemented for all types.
-            # Integer output from a torch analysis stays a tensor; the rest are
-            # numpy arrays. set_tile writes either.
-            connectivity_raster: np.ndarray | torch.Tensor
-            flow_raster: np.ndarray | torch.Tensor
-            if float_output:
-                # when connectivity is a numpy array
-                if isinstance(connectivity, np.ndarray):
-                    connectivity_raster = np.expand_dims(
-                        connectivity.astype(float), axis=0
-                    )
-                    flow_raster = np.expand_dims(np.log10(1.0 + flow) * 20.0, axis=0)
-                else:
-                    # Connectivity and flow are both tensors or both arrays.
-                    assert isinstance(flow, torch.Tensor)
-                    connectivity_raster = connectivity.detach().numpy().astype(float)
-                    flow_raster = (
-                        np.log10(1.0 + flow.detach().numpy().astype(float)) * 20.0
-                    )
-            else:
-                if isinstance(connectivity, np.ndarray):
-                    connectivity_raster = np.expand_dims(
-                        np.clip(connectivity * 255, 0, 255).astype(np.uint8), axis=0
-                    )
-                    flow_raster = np.expand_dims(
-                        np.clip(np.log10(1.0 + flow) * 20.0, 0, 255).astype(np.uint8),
-                        axis=0,
-                    )
-                else:
-                    assert isinstance(flow, torch.Tensor)
-                    connectivity_raster = torch.clamp(
-                        connectivity.type(torch.float) * 255, 0, 255
-                    ).type(torch.uint8)
-                    flow_raster = torch.clamp(
-                        torch.log10(1.0 + flow.type(torch.float)) * 20.0, 0, 255
-                    ).type(torch.uint8)
-
-            # Prepares the tiles for writing.
-            if conn_file is not None:
-                # Writes the tiles.
-                conn_tile = per_tile_iter.clone_shape()
-                conn_tile.m = connectivity_raster
-                conn_file.set_tile(conn_tile, offset=border_size - padding_size)
-                if flow_file is not None:
-                    flow_tile = per_tile_iter.clone_shape()
-                    flow_tile.m = flow_raster
-                    flow_file.set_tile(flow_tile, offset=border_size - padding_size)
-            # Displays the output if so asked. Drawing and progress output
-            # aren't tested, so mutmut leaves them alone.
-            if display_tiles is True or i in display_tiles:  # pragma: no mutate block
-                conn_tile.draw_tile(title="Connectivity")
-                if compute_flow:
-                    flow_tile.draw_tile(title="Flow")
-            if report_progress:  # pragma: no mutate block
-                print(i, end=" ", flush=True)
-        if report_progress:  # pragma: no mutate block
-            print()
-
-    # Produce the outputs, on disk or in memory.
-    data_type = "float32" if float_output else "uint8"
-    # Computes the border size of the output geotiff, according to whether we wish
-    # to include the border in the output or not.
-    output_border_size = border_size - padding_size
-    connectivity_output = permeability_geotiff.crop_to_new_file(
-        output_border_size,
-        data_type=data_type,
-        filename=output_repop_fn,
-        in_memory=in_memory,
-    )
-    flow_output = (
-        permeability_geotiff.crop_to_new_file(
-            output_border_size,
-            data_type=data_type,
-            filename=output_grad_fn,
-            in_memory=in_memory,
-        )
-        if compute_flow
-        else None
-    )
-    if in_memory:
-        # Returned open; the caller closes them with a with statement.
-        do_analysis(connectivity_output, flow_output)
-        return connectivity_output, flow_output
-    # Closing a file on disk finishes writing it. The results are in the files.
-    with connectivity_output, flow_output or nullcontext():
-        do_analysis(connectivity_output, flow_output)
-    return None, None
+    return layers if layers is not None else (None, None)

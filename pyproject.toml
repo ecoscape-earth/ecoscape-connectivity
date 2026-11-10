@@ -29,6 +29,7 @@ dependencies = [
     "rasterio>=1.5.2",
     "scgt>=0.0.32",
     "torch>=2.14.1",
+    "typing-extensions>=4.16.0",
 ]
 
 [dependency-groups]
