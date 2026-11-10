@@ -20,13 +20,13 @@ This package implements the computation of connectivity and flow according to th
 
     pip install ecoscape-connectivity
 
-EcoScape reads and writes rasters with rasterio, whose packages include GDAL, so you don't need to install GDAL yourself.
+EcoScape reads and writes rasters with rasterio. The rasterio package includes GDAL; you don't need to install it yourself.
 
 The computation will be much faster if you run it with GPU support. We recommend at least a T2-equivalent GPU or better.
 
 ## Usage
 
-`connectivity_and_flow` computes the connectivity and flow layers of a species' habitat. Its parameters are named as in the EcoScape paper. Each layer is a path: a local file, or anything else `rasterio.open` accepts, such as a URL.
+`connectivity_and_flow` computes the connectivity and flow layers of a species' habitat. Its parameters are named as in the EcoScape paper, except `gap_crossing`, which counts the pixels the species can cross: one less than the paper's gap-crossing distance g. Each layer is a path: a local file, or anything else `rasterio.open` accepts, such as a URL.
 
 ```python
 import ecoscape_connectivity
@@ -39,11 +39,13 @@ ecoscape_connectivity.connectivity_and_flow(
     connectivity_layer="connectivity.tif",
     flow_layer="flow.tif",
     dispersal_distance=40,
-    gap_crossing_distance=2,
+    # Pixels crossed in each propagation round: the paper's gap-crossing
+    # distance g is one more, here g = 2.
+    gap_crossing=1,
 )
 ```
 
-The landscape matrix permeability comes either from a landcover layer and a permeability table, as above, or from a permeability layer (`permeability_layer`). Without output paths, `connectivity_and_flow` returns the layers in memory, as numpy arrays with their rasterio profile:
+The landscape matrix permeability comes either from a landcover layer and a permeability table, as above, or from a permeability layer (`permeability_layer`). Without output paths, `connectivity_and_flow` returns the layers as numpy arrays with their rasterio profile:
 
 ```python
 layers = ecoscape_connectivity.connectivity_and_flow(
@@ -67,7 +69,7 @@ Run `ecoscape-connectivity --help` for every option.
 
 ## Migrating from `compute_connectivity`
 
-`compute_connectivity` and `analyze_geotiffs` are deprecated, and a future version will remove them. They still work, and give the same results, but warn with a `FutureWarning`. Replace them with `connectivity_and_flow` and `analyze_tiles`:
+`compute_connectivity` and `analyze_geotiffs` are deprecated, and a future version will remove them. They still work and give the same results, but warn with a `FutureWarning`. Replace them with `connectivity_and_flow` and `analyze_tiles`:
 
 | `compute_connectivity` | `connectivity_and_flow` |
 | --- | --- |
@@ -80,14 +82,13 @@ Run `ecoscape-connectivity --help` for every option.
 | `flow_fn` | `flow_layer`; `connectivity_and_flow` computes flow unless `compute_flow=False` |
 | `dispersal` | `dispersal_distance` |
 | `num_gaps` | `num_gap_crossings` |
-| `gap_crossing` | `gap_crossing_distance`, which is one more: `gap_crossing=1` is `gap_crossing_distance=2` |
 | `minimum_habitat` | `minimum_tile_habitat` |
 | `repopulation_only_in_habitat` | `connectivity_only_in_habitat` |
 | `in_memory=True`, `generate_flow_memory` | leave out `connectivity_layer`; `compute_flow` |
 
-`analyze_geotiffs` becomes `analyze_tiles`, which takes the analysis function first, with the same new names, and `output_repop_fn`, `output_grad_fn` and `generate_gradient` become `connectivity_layer`, `flow_layer` and `compute_flow`. `analyze_tiles` has the same defaults as `connectivity_and_flow`: tiles of 1000 pixels, a border of 100, and floating point output. `display_tiles` is no longer supported.
+`analyze_geotiffs` becomes `analyze_tiles`, which takes the analysis function first, with the same new names, and `output_repop_fn`, `output_grad_fn` and `generate_gradient` become `connectivity_layer`, `flow_layer` and `compute_flow`. `analyze_tiles` has the same defaults as `connectivity_and_flow`: tiles of 1000 pixels, a border of 100, and floating point output. 
 
-Pass paths instead of scgt `GeoTiff` objects: the new functions don't take them. In memory, both the old and the new functions now return the layers as numpy arrays, rather than `GeoTiff` objects.
+Pass paths instead of scgt `GeoTiff` objects. In memory, both the old and the new functions now return the layers as numpy arrays.
 
 ## Running the tests
 
@@ -103,13 +104,12 @@ You need [uv](https://docs.astral.sh/uv/getting-started/installation/). Install 
 Compute connectivity and flow layers, the EcoScape algorithm's outputs.
 
 These are the preferred entry points; they replace `compute_connectivity`
-and `analyze_geotiffs`, which take and return scgt `GeoTiff` objects.
-Parameter names follow the EcoScape paper.
+and `analyze_geotiffs`. Parameter names follow the EcoScape paper.
 
-Every layer is a path: anything `rasterio.open` accepts, so besides local
-files also URLs, GDAL virtual paths (`/vsicurl/...`, `/vsis3/...`) and the
-`.name` of a rasterio `MemoryFile` for a raster in memory. Paths, rather than
-open datasets, keep the interface simple:
+Every layer is a path: anything `rasterio.open` accepts. This includes local
+files, URLs, GDAL virtual paths (`/vsicurl/...`, `/vsis3/...`) and the
+`.name` of a rasterio `MemoryFile` for a raster in memory. Paths keep the interface
+simple:
 
 - reading is cheap: profiling showed that opening and reading the inputs
   takes under 0.2% of an analysis, and reusing an open dataset across
@@ -150,7 +150,7 @@ def connectivity_and_flow(
         compute_flow: bool = True,
         dispersal_distance: Dispersal | None = None,
         num_gap_crossings: int | None = None,
-        gap_crossing_distance: int = 1,
+        gap_crossing: int = 0,
         num_simulations: int = 400,
         seed_density: float = 4,
         random_seed: int | None = None,
@@ -172,6 +172,21 @@ Compute the connectivity and flow layers of a species' habitat.
 The landscape matrix permeability comes either from permeability_layer,
 or from landcover_layer and permeability_table, which gives the
 permeability of each landcover class.
+
+The outputs are encoded as follows:
+
+If floating point output is selected:
+- The connectivity output is in [0, 1].
+- The flow output is in [0, infty), obtained via 20 * log_10(1 + f).
+
+If integer output is selected:
+- For connectivity, the values from [0, 1] are multiplied by 255 and truncated to an
+  integer from 0 to 255.
+- For flow, the values from [0, infty) are encoded in log-scale via 20 * log_10(1 + f)
+  (so that the flow is expressed in dB, like sound pressure level), clipped to the
+  0..255 range, and truncated to an integer.
+
+Integer output saves space, but floating point output is more accurate and intuitive to use.
 
 **Arguments**:
 
@@ -196,12 +211,14 @@ alone is faster and uses less memory.
 - `dispersal_distance`: dispersal distance d, in pixels, or a
 function that returns a random one for each batch of simulations,
 such as half_cauchy. If None, it is num_gap_crossings times
-gap_crossing_distance.
-- `num_gap_crossings`: number of gap-crossings n, so that d = n * g;
-used if dispersal_distance is None.
-- `gap_crossing_distance`: gap-crossing distance g, in pixels: in
-each propagation round, the species can cross up to g - 1 pixels of
-any landcover.
+(gap_crossing + 1).
+- `num_gap_crossings`: number of gap-crossings n, so that the
+dispersal distance is n * (gap_crossing + 1); used if
+dispersal_distance is None.
+- `gap_crossing`: number of pixels of any landcover the species can
+cross in each propagation round; 0 means it moves only between
+adjacent pixels. The paper's gap-crossing distance g is one more:
+gap_crossing=1 is the paper's g = 2.
 - `num_simulations`: number of repopulation simulations to average.
 - `seed_density`: density of seeds: each habitat pixel is a seed
 with probability seed_density / (1 + 2 * d) ** 2.
@@ -228,9 +245,8 @@ padding.
 - `minimum_tile_habitat`: tiles whose mean habitat, border included,
 is below this are skipped and left at 0; without a habitat layer,
 the mean permeability is used.
-- `float_output`: whether the outputs are floating point; otherwise
-they are bytes, with connectivity scaled to 0-255 and flow to
-20 * log10(1 + flow), clipped to 0-255.
+- `float_output`: whether the outputs are floating point or bytes; see
+the encoding above.
 - `report_progress`: whether to print the number of each tile
 analyzed.
 
@@ -587,6 +603,24 @@ def createdir_for_file(fn: str) -> None
 ```
 
 Ensures that the path to a file exists.
+
+<a id="util.draw_layer"></a>
+
+#### draw\_layer
+
+```python
+def draw_layer(path: str, title: str, size: float = 5) -> None
+```
+
+Draw the first band of a layer, such as a connectivity or flow layer
+
+written by connectivity_and_flow, with a color bar.
+
+**Arguments**:
+
+- `path`: path of the layer, or anything else rasterio.open accepts.
+- `title`: title of the figure.
+- `size`: width and height of the figure, in inches.
 
 <a id="util.SingleIterator"></a>
 

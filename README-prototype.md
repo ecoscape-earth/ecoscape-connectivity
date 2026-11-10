@@ -20,13 +20,13 @@ This package implements the computation of connectivity and flow according to th
 
     pip install ecoscape-connectivity
 
-EcoScape reads and writes rasters with rasterio, whose packages include GDAL, so you don't need to install GDAL yourself.
+EcoScape reads and writes rasters with rasterio. The rasterio package includes GDAL; you don't need to install it yourself.
 
 The computation will be much faster if you run it with GPU support. We recommend at least a T2-equivalent GPU or better.
 
 ## Usage
 
-`connectivity_and_flow` computes the connectivity and flow layers of a species' habitat. Its parameters are named as in the EcoScape paper. Each layer is a path: a local file, or anything else `rasterio.open` accepts, such as a URL.
+`connectivity_and_flow` computes the connectivity and flow layers of a species' habitat. Its parameters are named as in the EcoScape paper, except `gap_crossing`, which counts the pixels the species can cross: one less than the paper's gap-crossing distance g. Each layer is a path: a local file, or anything else `rasterio.open` accepts, such as a URL.
 
 ```python
 import ecoscape_connectivity
@@ -39,11 +39,13 @@ ecoscape_connectivity.connectivity_and_flow(
     connectivity_layer="connectivity.tif",
     flow_layer="flow.tif",
     dispersal_distance=40,
-    gap_crossing_distance=2,
+    # Pixels crossed in each propagation round: the paper's gap-crossing
+    # distance g is one more, here g = 2.
+    gap_crossing=1,
 )
 ```
 
-The landscape matrix permeability comes either from a landcover layer and a permeability table, as above, or from a permeability layer (`permeability_layer`). Without output paths, `connectivity_and_flow` returns the layers in memory, as numpy arrays with their rasterio profile:
+The landscape matrix permeability comes either from a landcover layer and a permeability table, as above, or from a permeability layer (`permeability_layer`). Without output paths, `connectivity_and_flow` returns the layers as numpy arrays with their rasterio profile:
 
 ```python
 layers = ecoscape_connectivity.connectivity_and_flow(
@@ -67,7 +69,7 @@ Run `ecoscape-connectivity --help` for every option.
 
 ## Migrating from `compute_connectivity`
 
-`compute_connectivity` and `analyze_geotiffs` are deprecated, and a future version will remove them. They still work, and give the same results, but warn with a `FutureWarning`. Replace them with `connectivity_and_flow` and `analyze_tiles`:
+`compute_connectivity` and `analyze_geotiffs` are deprecated, and a future version will remove them. They still work and give the same results, but warn with a `FutureWarning`. Replace them with `connectivity_and_flow` and `analyze_tiles`:
 
 | `compute_connectivity` | `connectivity_and_flow` |
 | --- | --- |
@@ -80,14 +82,13 @@ Run `ecoscape-connectivity --help` for every option.
 | `flow_fn` | `flow_layer`; `connectivity_and_flow` computes flow unless `compute_flow=False` |
 | `dispersal` | `dispersal_distance` |
 | `num_gaps` | `num_gap_crossings` |
-| `gap_crossing` | `gap_crossing_distance`, which is one more: `gap_crossing=1` is `gap_crossing_distance=2` |
 | `minimum_habitat` | `minimum_tile_habitat` |
 | `repopulation_only_in_habitat` | `connectivity_only_in_habitat` |
 | `in_memory=True`, `generate_flow_memory` | leave out `connectivity_layer`; `compute_flow` |
 
-`analyze_geotiffs` becomes `analyze_tiles`, which takes the analysis function first, with the same new names, and `output_repop_fn`, `output_grad_fn` and `generate_gradient` become `connectivity_layer`, `flow_layer` and `compute_flow`. `analyze_tiles` has the same defaults as `connectivity_and_flow`: tiles of 1000 pixels, a border of 100, and floating point output. `display_tiles` is no longer supported.
+`analyze_geotiffs` becomes `analyze_tiles`, which takes the analysis function first, with the same new names, and `output_repop_fn`, `output_grad_fn` and `generate_gradient` become `connectivity_layer`, `flow_layer` and `compute_flow`. `analyze_tiles` has the same defaults as `connectivity_and_flow`: tiles of 1000 pixels, a border of 100, and floating point output. 
 
-Pass paths instead of scgt `GeoTiff` objects: the new functions don't take them. In memory, both the old and the new functions now return the layers as numpy arrays, rather than `GeoTiff` objects.
+Pass paths instead of scgt `GeoTiff` objects. In memory, both the old and the new functions now return the layers as numpy arrays.
 
 ## Running the tests
 
