@@ -9,7 +9,7 @@ coverage:
 # README.md is generated: edit README-prototype.md or the docstrings
 # instead, then run this target.
 docs:
-	uv run pydoc-markdown -I ecoscape_connectivity -m repopulation -m distributions -m util > Documentation.md
+	uv run pydoc-markdown -I ecoscape_connectivity -m connectivity -m repopulation -m distributions -m util > Documentation.md
 	cat README-prototype.md Documentation.md > README.md
 
 # Installs the exact versions in uv.lock into .venv and installs git hook that runs
