@@ -17,6 +17,7 @@ simple:
   mode, a dataset closed too early, or a MemoryFile collected while in use.
 """
 
+from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
@@ -27,7 +28,7 @@ import torch
 from rasterio.io import DatasetReader, DatasetWriter, MemoryFile
 
 from .raster import create_output, read_tile, tile_windows, write_core
-from .util import AnalysisFunction, Dispersal, analyze_tile_torch, dict_translate
+from .util import analyze_tile_torch, dict_translate
 
 
 @dataclass(frozen=True)
@@ -53,7 +54,7 @@ def connectivity_and_flow(
     connectivity_layer: str | None = None,
     flow_layer: str | None = None,
     compute_flow: bool = True,
-    dispersal_distance: Dispersal | None = None,
+    dispersal_distance: float | Callable[[], float] | None = None,
     num_gap_crossings: int | None = None,
     gap_crossing: int = 0,
     num_simulations: int = 400,
@@ -191,7 +192,10 @@ def connectivity_and_flow(
 
 
 def analyze_tiles(
-    analysis: AnalysisFunction,
+    analysis: Callable[
+        [np.ndarray, np.ndarray],
+        tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
+    ],
     habitat_layer: str | None = None,
     permeability_layer: str | None = None,
     landcover_layer: str | None = None,
@@ -310,7 +314,10 @@ def analyze_tiles(
 
 
 def _run_tiles(
-    analysis: AnalysisFunction,
+    analysis: Callable[
+        [np.ndarray, np.ndarray],
+        tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
+    ],
     habitat_dataset: DatasetReader | None,
     source: DatasetReader,
     connectivity: DatasetWriter,

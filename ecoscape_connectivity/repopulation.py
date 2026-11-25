@@ -7,13 +7,14 @@ results don't change.
 """
 
 import warnings
+from collections.abc import Callable
 from typing import Any, Protocol
 
+import numpy as np
 import torch
 from typing_extensions import deprecated
 
 from .connectivity import ConnectivityLayers, analyze_tiles, connectivity_and_flow
-from .util import AnalysisFunction, Dispersal
 
 
 class GeoTiffLike(Protocol):
@@ -48,7 +49,7 @@ def compute_connectivity(
     connectivity_fn: str | None = None,
     flow_fn: str | None = None,
     gap_crossing: int = 0,
-    dispersal: Dispersal | None = None,
+    dispersal: float | Callable[[], float] | None = None,
     num_gaps: int | None = None,
     num_simulations: int = 400,
     seed_density: float = 4,
@@ -189,7 +190,11 @@ def analyze_geotiffs(
     permeability_dictionary: dict[int, float] | None = None,
     permeability_fn: str | GeoTiffLike | None = None,
     permeability_scaling: float = 1.0,
-    analysis_fn: AnalysisFunction | None = None,
+    analysis_fn: Callable[
+        [np.ndarray, np.ndarray],
+        tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
+    ]
+    | None = None,
     tile_size: int = 1024,
     border_size: int = 64,
     padding_size: int = 0,

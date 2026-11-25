@@ -49,7 +49,7 @@ def connectivity_and_flow(
         connectivity_layer: str | None = None,
         flow_layer: str | None = None,
         compute_flow: bool = True,
-        dispersal_distance: Dispersal | None = None,
+        dispersal_distance: float | Callable[[], float] | None = None,
         num_gap_crossings: int | None = None,
         gap_crossing: int = 0,
         num_simulations: int = 400,
@@ -160,7 +160,10 @@ None if the layers are written to files; otherwise the layers.
 #### analyze\_tiles
 
 ```python
-def analyze_tiles(analysis: AnalysisFunction,
+def analyze_tiles(analysis: Callable[
+    [np.ndarray, np.ndarray],
+    tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
+],
                   habitat_layer: str | None = None,
                   permeability_layer: str | None = None,
                   landcover_layer: str | None = None,
@@ -233,7 +236,7 @@ def compute_connectivity(
     connectivity_fn: str | None = None,
     flow_fn: str | None = None,
     gap_crossing: int = 0,
-    dispersal: Dispersal | None = None,
+    dispersal: float | Callable[[], float] | None = None,
     num_gaps: int | None = None,
     num_simulations: int = 400,
     seed_density: float = 4,
@@ -354,7 +357,11 @@ def analyze_geotiffs(
         permeability_dictionary: dict[int, float] | None = None,
         permeability_fn: str | GeoTiffLike | None = None,
         permeability_scaling: float = 1.0,
-        analysis_fn: AnalysisFunction | None = None,
+        analysis_fn: Callable[
+            [np.ndarray, np.ndarray],
+            tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
+        ]
+    | None = None,
         tile_size: int = 1024,
         border_size: int = 64,
         padding_size: int = 0,
@@ -593,7 +600,7 @@ def analyze_tile_torch(
     seed_density: float = 4.0,
     produce_gradient: bool = False,
     batch_size: int = 1,
-    dispersal: Dispersal = 20,
+    dispersal: float | Callable[[], float] = 20,
     num_simulations: int = 100,
     gap_crossing: int = 0,
     repopulation_only_in_habitat: bool = True

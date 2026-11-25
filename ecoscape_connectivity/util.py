@@ -12,15 +12,6 @@ from torch import nn
 # We collect here a few generally useful functions, and the repopulation
 # simulation.
 
-# A dispersal distance in pixels, or a function that samples one, such as
-# distributions.half_cauchy.
-type Dispersal = float | Callable[[], float]
-# Takes habitat and permeability tiles, and returns connectivity and flow.
-type AnalysisFunction = Callable[
-    [np.ndarray, np.ndarray],
-    tuple[torch.Tensor | np.ndarray, torch.Tensor | np.ndarray],
-]
-
 
 def dict_translate(
     np_array: np.ndarray, my_dict: dict[int, float], default_val: float = 0
@@ -196,7 +187,7 @@ def analyze_tile_torch(
     seed_density: float = 4.0,
     produce_gradient: bool = False,
     batch_size: int = 1,
-    dispersal: Dispersal = 20,
+    dispersal: float | Callable[[], float] = 20,
     num_simulations: int = 100,
     gap_crossing: int = 0,
     repopulation_only_in_habitat: bool = True,
